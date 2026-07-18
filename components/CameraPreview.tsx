@@ -1,0 +1,182 @@
+'use client';
+
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { Camera, AlertCircle, RefreshCw } from 'lucide-react';
+import { CameraService } from '@/services/camera/CameraService';
+import { StorageService } from '@/services/storage/StorageService';
+
+interface CameraPreviewProps {
+  onStreamActive: (stream: MediaStream) => void;
+  onStreamInactive: () => void;
+  videoRef: React.RefObject<HTMLVideoElement | null>;
+}
+
+export const CameraPreview: React.FC<CameraPreviewProps> = ({
+  onStreamActive,
+  onStreamInactive,
+  videoRef,
+}) => {
+  const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
+  const [selectedCameraId, setSelectedCameraId] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  const streamRef = useRef<MediaStream | null>(null);
+
+  // Stops current stream
+  const stopWebcam = useCallback(() => {
+    if (streamRef.current) {
+      CameraService.stopStream(streamRef.current);
+      streamRef.current = null;
+      onStreamInactive();
+    }
+  }, [onStreamInactive]);
+
+  // Starts the webcam stream with selected device ID
+  const startWebcam = useCallback(async (deviceId: string) => {
+    setIsLoading(true);
+    setError(null);
+    stopWebcam();
+
+    try {
+      const stream = await CameraService.startStream(deviceId);
+      streamRef.current = stream;
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.onloadedmetadata = () => {
+          setIsLoading(false);
+          onStreamActive(stream);
+        };
+      }
+    } catch (err: unknown) {
+      console.error(`Failed to start camera ${deviceId}:`, err);
+      const msg = err instanceof Error ? err.message : 'Unknown camera error';
+      setError(msg || 'Failed to start camera. Please verify permissions or connection.');
+      setIsLoading(false);
+      onStreamInactive();
+    }
+  }, [onStreamActive, onStreamInactive, videoRef, stopWebcam]);
+
+  // Initialize and load cameras
+  useEffect(() => {
+    let active = true;
+
+    async function initCamera() {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        // 1. Get list of cameras
+        const list = await CameraService.getCameras();
+        if (!active) return;
+        
+        setCameras(list);
+
+        if (list.length === 0) {
+          throw new Error('No webcam detected. Please plug in a USB camera.');
+        }
+
+        // 2. Load stored settings
+        const settings = await StorageService.getCameraSettings();
+        if (!active) return;
+
+        let targetId = '';
+        if (settings?.selectedDeviceId && list.some(c => c.deviceId === settings.selectedDeviceId)) {
+          targetId = settings.selectedDeviceId;
+        } else {
+          // Detect Logitech webcam by label prefix
+          const logitech = list.find(c => c.label.toLowerCase().includes('logitech'));
+          targetId = logitech ? logitech.deviceId : list[0].deviceId;
+        }
+
+        setSelectedCameraId(targetId);
+        await startWebcam(targetId);
+      } catch (err: unknown) {
+        if (!active) return;
+        console.error('Camera initialization error:', err);
+        const msg = err instanceof Error ? err.message : 'Unknown camera initialization error';
+        setError(msg || 'Permission denied or webcam not connected.');
+        setIsLoading(false);
+      }
+    }
+
+    initCamera();
+
+    return () => {
+      active = false;
+      stopWebcam();
+    };
+  }, [startWebcam, stopWebcam]);
+
+  // Handle dropdown selection
+  const handleCameraChange = async (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const newId = event.target.value;
+    setSelectedCameraId(newId);
+    await startWebcam(newId);
+    // Save selection
+    await StorageService.saveCameraSettings(newId);
+  };
+
+  return (
+    <div className="flex flex-col gap-4 w-full max-w-3xl mx-auto">
+      {/* Webcam Frame */}
+      <div className="relative aspect-video rounded-3xl overflow-hidden bg-slate-900 border border-slate-800 shadow-2xl">
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className="w-full h-full object-cover"
+        />
+
+        {/* Loading Overlay */}
+        {isLoading && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/80 backdrop-blur-sm z-10">
+            <RefreshCw className="h-10 w-10 text-indigo-500 animate-spin mb-3" />
+            <p className="text-slate-400 text-sm font-semibold">Initializing camera stream...</p>
+          </div>
+        )}
+
+        {/* Error Overlay */}
+        {error && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center p-6 bg-slate-950/90 backdrop-blur-md z-10 text-center">
+            <AlertCircle className="h-12 w-12 text-rose-500 mb-4 animate-bounce" />
+            <h3 className="text-lg font-bold text-white mb-2">Webcam Error</h3>
+            <p className="text-slate-400 text-sm max-w-md mb-6">{error}</p>
+            <button
+              onClick={() => startWebcam(selectedCameraId)}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold border border-slate-700 transition-all cursor-pointer"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Retry Connection
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Camera Selection Controls */}
+      {!error && cameras.length > 1 && (
+        <div className="flex items-center justify-between px-4 py-3 rounded-2xl bg-slate-950/40 border border-slate-900 backdrop-blur-md">
+          <div className="flex items-center gap-2 text-slate-400 text-sm font-medium">
+            <Camera className="h-4 w-4 text-indigo-400" />
+            <span>Select Input Device</span>
+          </div>
+          <select
+            value={selectedCameraId}
+            onChange={handleCameraChange}
+            disabled={isLoading}
+            className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs sm:text-sm font-semibold text-slate-200 focus:outline-none focus:border-indigo-500 cursor-pointer disabled:opacity-50"
+          >
+            {cameras.map((camera) => (
+              <option key={camera.deviceId} value={camera.deviceId}>
+                {camera.label || `Camera ${camera.deviceId.substring(0, 5)}...`}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+    </div>
+  );
+};
+export default CameraPreview;
