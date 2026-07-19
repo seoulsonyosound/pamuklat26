@@ -95,7 +95,7 @@ export const Navbar: React.FC = () => {
               <div className="flex items-center gap-2">
                 <Link
                   href="/admin/frame"
-                  className="group relative overflow-hidden hidden sm:flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border-0 text-indigo-400 hover:text-[#060814] transition-colors duration-300 ease-out z-10 bg-indigo-500/10"
+                  className="group relative overflow-hidden hidden sm:flex items-center gap-1.5 px-3.5 py-2 rounded-none text-xs font-bold border-0 text-indigo-400 hover:text-[#060814] transition-colors duration-300 ease-out z-10 bg-indigo-500/10"
                 >
                   <div className="absolute inset-0 bg-white -translate-x-full group-hover:translate-x-0 transition-transform duration-[350ms] cubic-bezier(0.16, 1, 0.3, 1) -z-10" />
                   <LayoutTemplate className="h-3.5 w-3.5" />
@@ -103,7 +103,7 @@ export const Navbar: React.FC = () => {
                 </Link>
                 <button
                   onClick={handleLogout}
-                  className="group relative overflow-hidden flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border-0 text-slate-300 hover:text-[#060814] transition-colors duration-300 ease-out z-10 bg-slate-900 dark:bg-slate-900"
+                  className="group relative overflow-hidden flex items-center gap-1.5 px-3.5 py-2 rounded-none text-xs font-bold border-0 text-slate-300 hover:text-[#060814] transition-colors duration-300 ease-out z-10 bg-slate-900 dark:bg-slate-900"
                 >
                   <div className="absolute inset-0 bg-white -translate-x-full group-hover:translate-x-0 transition-transform duration-[350ms] cubic-bezier(0.16, 1, 0.3, 1) -z-10" />
                   <LogOut className="h-3.5 w-3.5" />
@@ -113,7 +113,7 @@ export const Navbar: React.FC = () => {
             ) : (
               <Link
                 href="/admin/login"
-                className="group relative overflow-hidden flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold border-0 text-white hover:text-[#060814] transition-colors duration-300 ease-out z-10 bg-rose-500"
+                className="group relative overflow-hidden flex items-center gap-1.5 px-4 py-2 rounded-none text-xs font-bold border-0 text-white hover:text-[#060814] transition-colors duration-300 ease-out z-10 bg-rose-500"
               >
                 <div className="absolute inset-0 bg-white -translate-x-full group-hover:translate-x-0 transition-transform duration-[350ms] cubic-bezier(0.16, 1, 0.3, 1) -z-10" />
                 <LogOut className="h-3.5 w-3.5 rotate-180 text-white group-hover:text-rose-500 transition-colors duration-300" />

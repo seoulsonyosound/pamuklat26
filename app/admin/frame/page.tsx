@@ -8,7 +8,7 @@ import { StorageService } from '@/services/storage/StorageService';
 import { AdminService } from '@/services/AdminService';
 import { FrameTemplate } from '@/types';
 
-const MAX_FRAME_CAPACITY = 3;
+const MAX_FRAME_CAPACITY = 10;
 
 export default function AdminFramePage() {
   const router = useRouter();
