@@ -217,7 +217,7 @@ export default function GalleryPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/95 backdrop-blur-md"
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-100/95 dark:bg-slate-950/95 backdrop-blur-md"
             onClick={() => setSelectedStrip(null)}
           >
             {/* Modal Box */}
@@ -226,20 +226,20 @@ export default function GalleryPage() {
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
               transition={{ type: 'spring', damping: 25, stiffness: 240 }}
-              className="relative flex flex-col md:flex-row max-w-4xl w-full bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden max-h-[90vh]"
+              className="relative flex flex-col md:flex-row max-w-4xl w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden max-h-[90vh]"
               onClick={(e) => e.stopPropagation()} // Stop closing
             >
               {/* Close Button */}
               <button
                 onClick={() => setSelectedStrip(null)}
-                className="absolute top-4 right-4 z-30 rounded-full bg-slate-950/60 hover:bg-slate-950 p-2 text-slate-400 hover:text-white transition-colors cursor-pointer border border-slate-800"
+                className="absolute top-4 right-4 z-30 rounded-full bg-slate-100/60 dark:bg-slate-950/60 hover:bg-slate-200 dark:hover:bg-slate-950 p-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer border border-slate-200 dark:border-slate-800"
               >
                 <X className="h-5 w-5" />
               </button>
 
               {/* Left Side: Dynamic Photostrip display */}
-              <div className="flex-1 flex justify-center items-center bg-slate-950/40 p-6 md:p-8 max-h-[60vh] md:max-h-none overflow-y-auto">
-                <div className="w-[180px] sm:w-[220px] aspect-[1/3] rounded-2xl overflow-hidden shadow-2xl border border-slate-800/80 bg-white">
+              <div className="flex-1 flex justify-center items-center bg-slate-50/40 dark:bg-slate-950/40 p-6 md:p-8 max-h-[60vh] md:max-h-none overflow-y-auto">
+                <div className="w-[180px] sm:w-[220px] aspect-[1/3] rounded-2xl overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-800/80 bg-white">
                   <img
                     src={selectedUrl}
                     alt={selectedStrip.filename}
@@ -249,21 +249,21 @@ export default function GalleryPage() {
               </div>
 
               {/* Right Side: Meta Info and Controls */}
-              <div className="w-full md:w-[320px] p-6 sm:p-8 flex flex-col justify-between border-t md:border-t-0 md:border-l border-slate-800 bg-slate-900">
+              <div className="w-full md:w-[320px] p-6 sm:p-8 flex flex-col justify-between border-t md:border-t-0 md:border-l border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900">
                 {/* Meta details */}
                 <div className="flex flex-col gap-4">
                   <div>
                     <span className="text-[10px] font-bold tracking-wider text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2.5 py-1 rounded-full uppercase">
                       Event Photostrip
                     </span>
-                    <h3 className="text-lg font-bold text-white truncate mt-3">{selectedStrip.filename}</h3>
-                    <p className="text-slate-400 text-xs mt-1">
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white truncate mt-3">{selectedStrip.filename}</h3>
+                    <p className="text-slate-500 dark:text-slate-400 text-xs mt-1">
                       Captured: {new Date(selectedStrip.createdAt).toLocaleString()}
                     </p>
                   </div>
 
                   {/* Sync status section */}
-                  <div className="p-3.5 rounded-2xl bg-slate-950/40 border border-slate-950 flex items-center gap-3">
+                  <div className="p-3.5 rounded-2xl bg-slate-100/40 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-950 flex items-center gap-3">
                     {selectedStrip.synced ? (
                       <>
                         <div className="rounded-full bg-emerald-500/10 p-2 text-emerald-455 border border-emerald-500/10">
@@ -294,7 +294,7 @@ export default function GalleryPage() {
                     {/* Download button: slide effect */}
                     <button
                       onClick={() => handleDownload(selectedStrip)}
-                      className="group/btn relative overflow-hidden flex items-center justify-center gap-2 px-4 py-3.5 rounded-none bg-white/5 border-0 text-white hover:text-[#060814] font-bold transition-all duration-300 ease-out hover:-translate-y-0.5 active:translate-y-0 cursor-pointer z-10"
+                      className="group/btn relative overflow-hidden flex items-center justify-center gap-2 px-4 py-3.5 rounded-none bg-slate-900 dark:bg-white/5 border-0 text-white dark:text-white hover:text-[#060814] font-bold transition-all duration-300 ease-out hover:-translate-y-0.5 active:translate-y-0 cursor-pointer z-10"
                     >
                       <div className="absolute inset-0 bg-white -translate-x-full group-hover/btn:translate-x-0 transition-transform duration-[350ms] cubic-bezier(0.16, 1, 0.3, 1) -z-10" />
                       <Download className="h-4.5 w-4.5 text-[#ff0055] group-hover/btn:text-[#060814]" />
@@ -303,7 +303,7 @@ export default function GalleryPage() {
                     {/* Delete button: slide effect */}
                     <button
                       onClick={() => handleDelete(selectedStrip.id)}
-                      className="group/btn relative overflow-hidden flex items-center justify-center gap-2 px-4 py-3.5 rounded-none bg-white/5 border-0 text-rose-455 font-semibold transition-all duration-300 ease-out hover:text-[#060814] hover:-translate-y-0.5 active:translate-y-0 cursor-pointer z-10"
+                      className="group/btn relative overflow-hidden flex items-center justify-center gap-2 px-4 py-3.5 rounded-none bg-rose-50 dark:bg-white/5 border border-rose-200 dark:border-transparent text-rose-500 dark:text-rose-400 font-semibold transition-all duration-300 ease-out hover:text-[#060814] hover:-translate-y-0.5 active:translate-y-0 cursor-pointer z-10"
                     >
                       <div className="absolute inset-0 bg-white -translate-x-full group-hover/btn:translate-x-0 transition-transform duration-[350ms] cubic-bezier(0.16, 1, 0.3, 1) -z-10" />
                       <Trash2 className="h-4.5 w-4.5 text-rose-500 group-hover/btn:text-[#060814]" />

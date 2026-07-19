@@ -35,7 +35,7 @@ export const CaptureProgress: React.FC<CaptureProgressProps> = ({
                   ? 'w-8 bg-indigo-500 shadow-md shadow-indigo-500/25'
                   : isActive
                   ? 'w-12 bg-indigo-400 animate-pulse shadow-md shadow-indigo-400/35'
-                  : 'w-2.5 bg-slate-800'
+                  : 'w-2.5 bg-slate-300 dark:bg-slate-800'
               }`}
             />
           );

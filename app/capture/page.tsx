@@ -173,7 +173,7 @@ export default function CapturePage() {
                   className={`relative aspect-video rounded-xl overflow-hidden border transition-all duration-500 ${
                     idx < photos.length
                       ? 'border-indigo-500/50 shadow-lg shadow-indigo-500/10 scale-100 opacity-100'
-                      : 'border-slate-800 bg-slate-900/50 scale-95 opacity-40'
+                      : 'border-slate-200 dark:border-slate-800 bg-slate-100/50 dark:bg-slate-900/50 scale-95 opacity-40'
                   }`}
                 >
                   {idx < photos.length ? (
@@ -191,7 +191,7 @@ export default function CapturePage() {
                     className={`absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
                       idx < photos.length
                         ? 'bg-indigo-500/90 text-white'
-                        : 'bg-slate-800/80 text-slate-500'
+                        : 'bg-slate-200/80 dark:bg-slate-800/80 text-slate-400 dark:text-slate-500'
                     }`}
                   >
                     #{idx + 1}

@@ -12,13 +12,13 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(true);
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
   const [mounted, setMounted] = useState<boolean>(false);
 
   useEffect(() => {
     // Read saved theme preference from localStorage on mount
     const savedTheme = localStorage.getItem('ssite_theme');
-    const isDark = savedTheme !== 'light'; // default to dark mode
+    const isDark = savedTheme === 'dark'; // default to light mode
 
     setIsDarkMode(isDark);
     applyTheme(isDark);
