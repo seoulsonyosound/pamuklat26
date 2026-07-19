@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
@@ -10,17 +11,23 @@ import { FlashAnimation } from '@/components/FlashAnimation';
 import { CameraService } from '@/services/camera/CameraService';
 import { CanvasService } from '@/services/CanvasService';
 import { StorageService } from '@/services/storage/StorageService';
+import { AdminService } from '@/services/AdminService';
 
 export default function CapturePage() {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
-  // States
+  // Guard the capture page for authenticated Admin only
+  useEffect(() => {
+    if (!AdminService.isAuthenticated()) {
+      router.replace('/admin/login');
+    }
+  }, [router]);
+
+  // Stream state
   const [isStreamActive, setIsStreamActive] = useState<boolean>(false);
 
-  // Stable callbacks to avoid re-triggering camera initialization
-  const handleStreamActive = useCallback(() => setIsStreamActive(true), []);
-  const handleStreamInactive = useCallback(() => setIsStreamActive(false), []);
+  // Capture workflow states
   const [isCapturing, setIsCapturing] = useState<boolean>(false);
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [countdown, setCountdown] = useState<number>(0);
@@ -28,6 +35,10 @@ export default function CapturePage() {
   
   const [isFlashing, setIsFlashing] = useState<boolean>(false);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+
+  // Stable callbacks to avoid re-triggering camera initialization
+  const handleStreamActive = useCallback(() => setIsStreamActive(true), []);
+  const handleStreamInactive = useCallback(() => setIsStreamActive(false), []);
 
   // Create object URLs from photo blobs for thumbnail display
   const photoUrls = useMemo(() => photos.map((blob) => URL.createObjectURL(blob)), [photos]);
@@ -47,24 +58,18 @@ export default function CapturePage() {
     setCountdown(0);
   }, []);
 
-  const compilePhotostrip = useCallback(async (allPhotos: Blob[]) => {
+  const compileAndRedirect = useCallback(async (allPhotos: Blob[]) => {
     setIsCapturing(false);
     setIsProcessing(true);
 
     try {
-      // 1. Retrieve custom transparent frame blob if uploaded
-      const frameTemplate = await StorageService.getFrame();
-      
-      // 2. Merge 4 photos vertically and overlay frame
-      const stripBlob = await CanvasService.generatePhotostrip(
-        allPhotos,
-        frameTemplate?.imageBlob || null
-      );
+      // 1. Generate base vertical photostrip layout
+      const initialStripBlob = await CanvasService.generatePhotostrip(allPhotos, null, 'none');
 
-      // 3. Save locally to IndexedDB & trigger SyncService
-      const savedStrip = await StorageService.savePhotostrip(stripBlob);
+      // 2. Save photostrip record alongside raw photos in IndexedDB
+      const savedStrip = await StorageService.savePhotostripWithRaw(initialStripBlob, allPhotos);
 
-      // 4. Redirect to the Preview Screen
+      // 3. Redirect to the Post-Capture Review Screen
       router.push(`/preview?id=${savedStrip.id}`);
     } catch (error) {
       console.error('Compilation failed:', error);
@@ -83,8 +88,8 @@ export default function CapturePage() {
       // 2. Play white flash animation
       setIsFlashing(true);
 
-      // 3. Take canvas photo snapshot
-      const photoBlob = await CameraService.takePhoto(videoRef.current);
+      // 3. Take raw canvas photo snapshot (natural camera pass-through)
+      const photoBlob = await CameraService.takePhoto(videoRef.current, 'none');
       const nextPhotos = [...photos, photoBlob];
       setPhotos(nextPhotos);
 
@@ -93,15 +98,15 @@ export default function CapturePage() {
         setCurrentStep((prev) => prev + 1);
         setCountdown(5);
       } else {
-        // All 4 photos captured, compile photostrip
-        await compilePhotostrip(nextPhotos);
+        // All 4 photos captured, compile photostrip & redirect to review screen
+        await compileAndRedirect(nextPhotos);
       }
     } catch (error) {
       console.error('Capture sequence error:', error);
       alert('Photo capture failed. Resetting photobooth.');
       resetState();
     }
-  }, [photos, compilePhotostrip, resetState]);
+  }, [photos, compileAndRedirect, resetState]);
 
   // Countdown timer loop
   useEffect(() => {
@@ -113,11 +118,11 @@ export default function CapturePage() {
       }, 1000);
       return () => clearTimeout(timer);
     } else {
-      // Take snapshot!
       triggerCapture();
     }
   }, [isCapturing, countdown, isProcessing, triggerCapture]);
 
+  // Start capture sequence directly
   const startCaptureSequence = () => {
     if (!isStreamActive || isCapturing || isProcessing) return;
 
@@ -131,19 +136,19 @@ export default function CapturePage() {
     <div className="flex-grow flex flex-col items-center justify-center py-4 relative">
       {/* Processing Loader Block */}
       {isProcessing && (
-        <div className="absolute inset-0 bg-white/90 backdrop-blur-md flex flex-col items-center justify-center z-50 rounded-3xl">
+        <div className="absolute inset-0 bg-white/90 dark:bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center z-50 rounded-3xl">
           <div className="relative flex items-center justify-center mb-4">
             <RefreshCw className="h-12 w-12 text-rose-500 animate-spin" />
             <Sparkles className="absolute h-5 w-5 text-indigo-500 animate-pulse" />
           </div>
-          <h2 className="text-xl font-bold text-slate-800 mb-2">Composing Photostrip</h2>
-          <p className="text-slate-550 text-sm max-w-xs text-center">
-            Merging 4 snapshots vertically and applying frame layout...
+          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-2">Capturing Session Complete</h2>
+          <p className="text-slate-500 dark:text-slate-400 text-sm max-w-xs text-center">
+            Preparing your photostrip for post-capture review & customization...
           </p>
         </div>
       )}
 
-      {/* Main Grid View */}
+      {/* Main Workspace Container */}
       <div className="w-full flex flex-col gap-6 items-center">
         {/* Progress Tracker when capturing */}
         {isCapturing && (
@@ -182,7 +187,6 @@ export default function CapturePage() {
                       <span className="text-slate-600 text-xs font-bold">{idx + 1}</span>
                     </div>
                   )}
-                  {/* Step badge */}
                   <div
                     className={`absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
                       idx < photos.length
@@ -198,7 +202,7 @@ export default function CapturePage() {
           </div>
         )}
 
-        {/* Live Camera Box */}
+        {/* Live Camera Viewport */}
         <div className="relative w-full max-w-3xl rounded-3xl overflow-hidden shadow-2xl">
           <CameraPreview
             videoRef={videoRef}
@@ -218,17 +222,17 @@ export default function CapturePage() {
 
         {/* Capture Control Button */}
         {!isCapturing && !isProcessing && (
-          <div className="flex flex-col items-center gap-4">
+          <div className="flex flex-col items-center gap-4 mt-2">
             <button
               onClick={startCaptureSequence}
               disabled={!isStreamActive}
               className={`group/btn relative overflow-hidden flex items-center gap-3 px-10 py-5 rounded-none font-black text-sm tracking-[0.15em] border-0 transition-all duration-300 ease-out z-10 ${
                 isStreamActive
-                  ? 'bg-transparent text-white hover:text-[#060814] hover:-translate-y-1 active:translate-y-0 cursor-pointer shadow-lg shadow-white/[0.02]'
-                  : 'bg-white/5 text-white/20 cursor-not-allowed'
+                  ? 'bg-slate-900 dark:bg-transparent text-white hover:text-[#060814] hover:-translate-y-1 active:translate-y-0 cursor-pointer shadow-lg shadow-white/[0.02]'
+                  : 'bg-white/5 text-slate-400 dark:text-white/20 cursor-not-allowed'
               }`}
             >
-              {/* White slide background overlay on hover (only active if stream active) */}
+              {/* White slide background overlay on hover */}
               {isStreamActive && (
                 <div className="absolute inset-0 bg-white -translate-x-full group-hover/btn:translate-x-0 transition-transform duration-[400ms] cubic-bezier(0.16, 1, 0.3, 1) -z-10" />
               )}
@@ -237,7 +241,7 @@ export default function CapturePage() {
               }`} />
               <span>START CAPTURE SEQUENCE</span>
             </button>
-            <p className="text-xs text-white/30 text-center font-medium max-w-xs leading-relaxed">
+            <p className="text-xs text-slate-500 dark:text-white/30 text-center font-medium max-w-xs leading-relaxed">
               This will capture 4 snapshots in a row with a 5-second countdown between each.
             </p>
           </div>

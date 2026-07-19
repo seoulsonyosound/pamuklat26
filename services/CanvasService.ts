@@ -66,10 +66,12 @@ export class CanvasService {
   /**
    * Combines 4 photo Blobs into a single vertical photostrip (800x2400px).
    * Overlays the custom PNG frame (if provided); otherwise, draws a premium default frame.
+   * Applies filterCss to photo layers.
    */
   static async generatePhotostrip(
     photos: Blob[],
-    customFrameBlob: Blob | null = null
+    customFrameBlob: Blob | null = null,
+    filterCss: string = 'none'
   ): Promise<Blob> {
     if (photos.length !== 4) {
       throw new Error('Photostrip generation requires exactly 4 photos.');
@@ -94,17 +96,18 @@ export class CanvasService {
 
     if (frameImg) {
       // === CUSTOM FRAME PATH ===
-      // Layer order: white background → frame template → photos ON TOP
-      // Photos are always visible above the frame template
-
       // Step 1: White background
       ctx.fillStyle = '#FFFFFF';
       ctx.fillRect(0, 0, this.CANVAS_WIDTH, this.CANVAS_HEIGHT);
 
-      // Step 2: Draw the custom frame template as background
+      // Step 2: Draw custom frame background
       ctx.drawImage(frameImg, 0, 0, this.CANVAS_WIDTH, this.CANVAS_HEIGHT);
 
-      // Step 3: Draw photos ON TOP of the frame — always visible
+      // Step 3: Draw photos with filter applied ON TOP of frame
+      if (filterCss && filterCss !== 'none') {
+        ctx.filter = filterCss;
+      }
+
       for (let i = 0; i < 4; i++) {
         const y =
           this.VERTICAL_MARGIN +
@@ -119,13 +122,17 @@ export class CanvasService {
           this.PHOTO_HEIGHT
         );
       }
+      ctx.filter = 'none';
     } else {
       // === DEFAULT FRAME PATH (no custom frame) ===
-      // Background
       ctx.fillStyle = '#FFFFFF';
       ctx.fillRect(0, 0, this.CANVAS_WIDTH, this.CANVAS_HEIGHT);
 
-      // Draw the 4 photos in their designated vertical slots
+      // Draw the 4 photos with filter
+      if (filterCss && filterCss !== 'none') {
+        ctx.filter = filterCss;
+      }
+
       for (let i = 0; i < 4; i++) {
         const y =
           this.VERTICAL_MARGIN +
@@ -140,8 +147,9 @@ export class CanvasService {
           this.PHOTO_HEIGHT
         );
       }
+      ctx.filter = 'none';
 
-      // Draw default frame on top
+      // Draw default frame borders and text on top
       this.drawDefaultFrame(ctx);
     }
 

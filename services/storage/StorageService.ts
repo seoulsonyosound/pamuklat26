@@ -27,34 +27,66 @@ export class StorageService {
   }
 
   /**
-   * Saves a new captured photostrip.
-   * Saves locally to IndexedDB immediately, and then triggers background sync.
+   * Saves a new captured photostrip along with its 4 raw snapshot blobs for post-capture editing.
    */
-  static async savePhotostrip(imageBlob: Blob): Promise<Photostrip> {
+  static async savePhotostripWithRaw(
+    imageBlob: Blob,
+    rawPhotos: Blob[]
+  ): Promise<Photostrip> {
     const deviceId = this.getDeviceId();
     const timestamp = Date.now();
-    const id = generatePbId(); // 15-char PocketBase ID
+    const id = generatePbId();
     const filename = `strip_${timestamp}_${deviceId}.png`;
 
     const photostrip: Photostrip = {
       id,
       filename,
       imageBlob,
+      rawPhotos,
+      selectedFrameId: null,
+      selectedFilterId: 'normal',
       createdAt: new Date(),
       uploadedAt: null,
       synced: false,
       deviceId,
     };
 
-    // 1. Save locally to IndexedDB
     await IndexedDBService.savePhotostrip(photostrip);
 
-    // 2. Trigger background sync (async)
     SyncService.triggerSync().catch((err) => {
       console.error('Trigger sync error:', err);
     });
 
     return photostrip;
+  }
+
+  /**
+   * Saves a new captured photostrip.
+   */
+  static async savePhotostrip(imageBlob: Blob): Promise<Photostrip> {
+    return this.savePhotostripWithRaw(imageBlob, []);
+  }
+
+  /**
+   * Update an existing photostrip record with newly rendered imageBlob, frameId, and filterId.
+   */
+  static async updatePhotostrip(
+    id: string,
+    newImageBlob: Blob,
+    selectedFrameId?: string | null,
+    selectedFilterId?: string
+  ): Promise<void> {
+    const existing = await IndexedDBService.getPhotostrip(id);
+    if (!existing) return;
+
+    const updated: Photostrip = {
+      ...existing,
+      imageBlob: newImageBlob,
+      selectedFrameId: selectedFrameId !== undefined ? selectedFrameId : existing.selectedFrameId,
+      selectedFilterId: selectedFilterId !== undefined ? selectedFilterId : existing.selectedFilterId,
+    };
+
+    await IndexedDBService.savePhotostrip(updated);
   }
 
   /**
@@ -78,31 +110,47 @@ export class StorageService {
   }
 
   /**
-   * Save a custom frame template blob.
+   * Save a custom frame template blob in multi-frame array.
    */
   static async saveFrame(filename: string, imageBlob: Blob): Promise<FrameTemplate> {
+    const id = generatePbId();
     const frame: FrameTemplate = {
-      id: 'current_frame',
+      id,
       filename,
       imageBlob,
       createdAt: new Date(),
+      isActive: true,
     };
     await IndexedDBService.saveFrame(frame);
     return frame;
   }
 
   /**
-   * Retrieve the active custom frame template.
+   * Retrieve all uploaded custom frame templates.
    */
-  static async getFrame(): Promise<FrameTemplate | undefined> {
-    return await IndexedDBService.getFrame();
+  static async getAllFrames(): Promise<FrameTemplate[]> {
+    return await IndexedDBService.getAllFrames();
   }
 
   /**
-   * Delete the custom frame template.
+   * Retrieve the active (or specific) custom frame template.
    */
-  static async deleteFrame(): Promise<void> {
-    await IndexedDBService.deleteFrame();
+  static async getFrame(id?: string): Promise<FrameTemplate | undefined> {
+    return await IndexedDBService.getFrame(id);
+  }
+
+  /**
+   * Set a specific frame template as active.
+   */
+  static async setActiveFrame(id: string): Promise<void> {
+    await IndexedDBService.setActiveFrame(id);
+  }
+
+  /**
+   * Delete a custom frame template by ID.
+   */
+  static async deleteFrame(id: string): Promise<void> {
+    await IndexedDBService.deleteFrame(id);
   }
 
   /**

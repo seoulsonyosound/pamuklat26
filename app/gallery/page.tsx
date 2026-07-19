@@ -8,12 +8,19 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Download, Trash2, X, Image as ImageIcon, Cloud, CloudOff, ZoomIn, Loader2 } from 'lucide-react';
 import { db } from '@/lib/db';
 import { StorageService } from '@/services/storage/StorageService';
+import { AdminService } from '@/services/AdminService';
 import { Photostrip } from '@/types';
 
 export default function GalleryPage() {
   const router = useRouter();
   const [selectedStrip, setSelectedStrip] = useState<Photostrip | null>(null);
   const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
+
+  // Sync auth state reactively on mount
+  useEffect(() => {
+    setIsAdmin(AdminService.isAuthenticated());
+  }, []);
 
   // Reactively fetch all photostrips from Dexie IndexedDB (newest first)
   const stripsList = useLiveQuery(
@@ -77,38 +84,40 @@ export default function GalleryPage() {
       {/* Title */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white flex items-center gap-2">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
             <ImageIcon className="h-7 w-7 text-indigo-500" />
             Photo Gallery
           </h1>
-          <p className="text-slate-400 text-sm mt-1.5">
+          <p className="text-slate-600 dark:text-slate-400 text-sm mt-1.5">
             Browse through all vertical photostrips captured at this event station.
           </p>
         </div>
         
         {/* Count Badge */}
-        <div className="self-start px-4 py-2 rounded-xl bg-slate-950/40 border border-slate-900 text-xs sm:text-sm font-bold text-slate-300">
-          Total Captured: <span className="text-indigo-400 font-black">{stripsList.length}</span>
+        <div className="self-start px-4 py-2 rounded-xl bg-white/80 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-900 text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300">
+          Total Captured: <span className="text-indigo-600 dark:text-indigo-400 font-black">{stripsList.length}</span>
         </div>
       </div>
 
       {/* Empty State */}
       {stripsList.length === 0 && (
-        <div className="flex-grow flex flex-col items-center justify-center py-20 text-center glass-card rounded-3xl p-8 max-w-lg mx-auto border border-dashed border-slate-800">
-          <div className="rounded-full bg-slate-900 p-5 text-slate-505 mb-4 border border-slate-800">
+        <div className="flex-grow flex flex-col items-center justify-center py-20 text-center glass-card rounded-3xl p-8 max-w-lg mx-auto border border-dashed border-slate-300 dark:border-slate-800">
+          <div className="rounded-full bg-slate-100 dark:bg-slate-900 p-5 text-slate-500 mb-4 border border-slate-200 dark:border-slate-800">
             <ImageIcon className="h-10 w-10" />
           </div>
-          <h3 className="text-lg font-bold text-white mb-1.5">No memories captured yet</h3>
-          <p className="text-slate-400 text-sm max-w-xs mb-6">
+          <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-1.5">No memories captured yet</h3>
+          <p className="text-slate-600 dark:text-slate-400 text-sm max-w-xs mb-6">
             Start a capture session on the capture page to create your first event photostrip!
           </p>
-          <button
-            onClick={() => router.push('/capture')}
-            className="group/btn relative overflow-hidden flex items-center justify-center gap-2 px-8 py-3.5 rounded-none bg-white/5 border-0 text-white hover:text-[#060814] font-bold transition-all duration-300 ease-out hover:-translate-y-0.5 active:translate-y-0 cursor-pointer z-10"
-          >
-            <div className="absolute inset-0 bg-white -translate-x-full group-hover/btn:translate-x-0 transition-transform duration-[350ms] cubic-bezier(0.16, 1, 0.3, 1) -z-10" />
-            <span>Start Capture Session</span>
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => router.push('/capture')}
+              className="group/btn relative overflow-hidden flex items-center justify-center gap-2 px-8 py-3.5 rounded-none bg-slate-900 dark:bg-white/5 border-0 text-white dark:text-white hover:text-[#060814] font-bold transition-all duration-300 ease-out hover:-translate-y-0.5 active:translate-y-0 cursor-pointer z-10"
+            >
+              <div className="absolute inset-0 bg-white -translate-x-full group-hover/btn:translate-x-0 transition-transform duration-[350ms] cubic-bezier(0.16, 1, 0.3, 1) -z-10" />
+              <span>Start Capture Session</span>
+            </button>
+          )}
         </div>
       )}
 
@@ -122,10 +131,10 @@ export default function GalleryPage() {
               <div
                 key={strip.id}
                 onClick={() => setSelectedStrip(strip)}
-                className="group relative flex flex-col rounded-2xl overflow-hidden glass-card glass-card-hover border border-slate-800/80 cursor-pointer"
+                className="group relative flex flex-col rounded-2xl overflow-hidden glass-card glass-card-hover border border-slate-200 dark:border-slate-800/80 cursor-pointer"
               >
                 {/* Image Container with fixed vertical aspect ratio */}
-                <div className="relative w-full aspect-[1/3] bg-slate-950 overflow-hidden">
+                <div className="relative w-full aspect-[1/3] bg-slate-100 dark:bg-slate-950 overflow-hidden">
                   <img
                     src={tempUrl}
                     alt={strip.filename}
@@ -162,9 +171,9 @@ export default function GalleryPage() {
                 </div>
 
                 {/* Card Info Footer */}
-                <div className="p-3.5 flex items-center justify-between bg-slate-950/40 border-t border-slate-900 gap-2">
+                <div className="p-3.5 flex items-center justify-between bg-slate-100/80 dark:bg-slate-950/40 border-t border-slate-200 dark:border-slate-900 gap-2">
                   <div className="min-w-0">
-                    <p className="text-[10px] text-slate-400 font-bold uppercase truncate">
+                    <p className="text-[10px] text-slate-700 dark:text-slate-400 font-bold uppercase truncate">
                       {new Date(strip.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </p>
                     <p className="text-[9px] text-slate-500 font-semibold truncate mt-0.5">
@@ -172,25 +181,28 @@ export default function GalleryPage() {
                     </p>
                   </div>
                   
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDownload(strip);
-                      }}
-                      className="rounded-lg bg-slate-900 hover:bg-slate-800 p-1.5 text-slate-400 hover:text-white transition-colors border border-slate-850"
-                      title="Download image"
-                    >
-                      <Download className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={(e) => handleDelete(strip.id, e)}
-                      className="rounded-lg bg-slate-900 hover:bg-rose-500/10 p-1.5 text-slate-400 hover:bg-rose-500/20 transition-colors border border-slate-850"
-                      title="Delete strip"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
+                  {/* Action buttons visible only to Admin */}
+                  {isAdmin && (
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDownload(strip);
+                        }}
+                        className="rounded-lg bg-slate-200 dark:bg-slate-900 hover:bg-slate-300 dark:hover:bg-slate-800 p-1.5 text-slate-700 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors border border-slate-300 dark:border-slate-850"
+                        title="Download image"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={(e) => handleDelete(strip.id, e)}
+                        className="rounded-lg bg-slate-200 dark:bg-slate-900 hover:bg-rose-500/10 p-1.5 text-slate-700 dark:text-slate-400 hover:text-rose-500 transition-colors border border-slate-300 dark:border-slate-850"
+                        title="Delete strip"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -276,27 +288,29 @@ export default function GalleryPage() {
                   </div>
                 </div>
 
-                {/* Actions */}
-                <div className="flex flex-col gap-2.5 mt-8">
-                  {/* Download button: slide effect */}
-                  <button
-                    onClick={() => handleDownload(selectedStrip)}
-                    className="group/btn relative overflow-hidden flex items-center justify-center gap-2 px-4 py-3.5 rounded-none bg-white/5 border-0 text-white hover:text-[#060814] font-bold transition-all duration-300 ease-out hover:-translate-y-0.5 active:translate-y-0 cursor-pointer z-10"
-                  >
-                    <div className="absolute inset-0 bg-white -translate-x-full group-hover/btn:translate-x-0 transition-transform duration-[350ms] cubic-bezier(0.16, 1, 0.3, 1) -z-10" />
-                    <Download className="h-4.5 w-4.5 text-[#ff0055] group-hover/btn:text-[#060814]" />
-                    <span>Download PNG</span>
-                  </button>
-                  {/* Delete button: slide effect */}
-                  <button
-                    onClick={() => handleDelete(selectedStrip.id)}
-                    className="group/btn relative overflow-hidden flex items-center justify-center gap-2 px-4 py-3.5 rounded-none bg-white/5 border-0 text-rose-455 font-semibold transition-all duration-300 ease-out hover:text-[#060814] hover:-translate-y-0.5 active:translate-y-0 cursor-pointer z-10"
-                  >
-                    <div className="absolute inset-0 bg-white -translate-x-full group-hover/btn:translate-x-0 transition-transform duration-[350ms] cubic-bezier(0.16, 1, 0.3, 1) -z-10" />
-                    <Trash2 className="h-4.5 w-4.5 text-rose-500 group-hover/btn:text-[#060814]" />
-                    <span>Delete Strip</span>
-                  </button>
-                </div>
+                {/* Actions visible only to Admin */}
+                {isAdmin && (
+                  <div className="flex flex-col gap-2.5 mt-8">
+                    {/* Download button: slide effect */}
+                    <button
+                      onClick={() => handleDownload(selectedStrip)}
+                      className="group/btn relative overflow-hidden flex items-center justify-center gap-2 px-4 py-3.5 rounded-none bg-white/5 border-0 text-white hover:text-[#060814] font-bold transition-all duration-300 ease-out hover:-translate-y-0.5 active:translate-y-0 cursor-pointer z-10"
+                    >
+                      <div className="absolute inset-0 bg-white -translate-x-full group-hover/btn:translate-x-0 transition-transform duration-[350ms] cubic-bezier(0.16, 1, 0.3, 1) -z-10" />
+                      <Download className="h-4.5 w-4.5 text-[#ff0055] group-hover/btn:text-[#060814]" />
+                      <span>Download PNG</span>
+                    </button>
+                    {/* Delete button: slide effect */}
+                    <button
+                      onClick={() => handleDelete(selectedStrip.id)}
+                      className="group/btn relative overflow-hidden flex items-center justify-center gap-2 px-4 py-3.5 rounded-none bg-white/5 border-0 text-rose-455 font-semibold transition-all duration-300 ease-out hover:text-[#060814] hover:-translate-y-0.5 active:translate-y-0 cursor-pointer z-10"
+                    >
+                      <div className="absolute inset-0 bg-white -translate-x-full group-hover/btn:translate-x-0 transition-transform duration-[350ms] cubic-bezier(0.16, 1, 0.3, 1) -z-10" />
+                      <Trash2 className="h-4.5 w-4.5 text-rose-500 group-hover/btn:text-[#060814]" />
+                      <span>Delete Strip</span>
+                    </button>
+                  </div>
+                )}
               </div>
             </motion.div>
           </motion.div>

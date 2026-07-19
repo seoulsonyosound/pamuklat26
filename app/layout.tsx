@@ -2,8 +2,11 @@ import type { Metadata } from 'next';
 import { Outfit } from 'next/font/google';
 import './globals.css';
 import Navbar from '@/components/Navbar';
+import Footer from '@/components/Footer';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import PWARegistration from '@/components/PWARegistration';
+import { ThemeProvider } from '@/context/ThemeContext';
+import { CameraProvider } from '@/context/CameraContext';
 
 const outfit = Outfit({
   subsets: ['latin'],
@@ -21,9 +24,29 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark" suppressHydrationWarning={true}>
+    <html lang="en" suppressHydrationWarning={true}>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  const t = localStorage.getItem('ssite_theme');
+                  if (t === 'light') {
+                    document.documentElement.classList.add('light');
+                    document.documentElement.classList.remove('dark');
+                  } else {
+                    document.documentElement.classList.add('dark');
+                    document.documentElement.classList.remove('light');
+                  }
+                } catch(e) {}
+              })();
+            `
+          }}
+        />
+      </head>
       <body
-        className={`${outfit.variable} font-sans antialiased text-slate-200 bg-[#060814] min-h-screen flex flex-col`}
+        className={`${outfit.variable} font-sans antialiased text-[#060814] dark:text-slate-200 dark:bg-[#060814] bg-slate-50 min-h-screen flex flex-col transition-colors duration-300`}
         suppressHydrationWarning={true}
       >
         {/* Anti-extension hydration patch script */}
@@ -54,14 +77,20 @@ export default function RootLayout({
             `
           }}
         />
-        <ErrorBoundary>
-          <PWARegistration />
-          <Navbar />
-          <main className="flex-1 w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col justify-start">
-            {children}
-          </main>
-        </ErrorBoundary>
+        <ThemeProvider>
+          <CameraProvider>
+            <ErrorBoundary>
+              <PWARegistration />
+              <Navbar />
+              <main className="flex-1 w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col justify-start">
+                {children}
+              </main>
+              <Footer />
+            </ErrorBoundary>
+          </CameraProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
 }
+

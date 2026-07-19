@@ -54,27 +54,83 @@ export class IndexedDBService {
   }
 
   /**
-   * Save a custom frame template.
+   * Save a custom frame template into multi-frame collection.
+   * Automatically sets the new frame as active and deactivates others.
    */
   static async saveFrame(frame: FrameTemplate): Promise<void> {
     if (!db) return;
-    await db.frames.put(frame);
+    
+    // Deactivate all existing frames first
+    const allFrames = await db.frames.toArray();
+    for (const f of allFrames) {
+      await db.frames.update(f.id, { isActive: false });
+    }
+
+    // Insert new active frame
+    await db.frames.put({
+      ...frame,
+      isActive: true,
+    });
   }
 
   /**
-   * Get the current active frame template.
+   * Get all uploaded custom frame templates (newest first).
    */
-  static async getFrame(id: string = 'current_frame'): Promise<FrameTemplate | undefined> {
-    if (!db) return undefined;
-    return await db.frames.get(id);
+  static async getAllFrames(): Promise<FrameTemplate[]> {
+    if (!db) return [];
+    return await db.frames.orderBy('createdAt').reverse().toArray();
   }
 
   /**
-   * Delete a custom frame template.
+   * Get the current active frame template (if any).
+   */
+  static async getFrame(id?: string): Promise<FrameTemplate | undefined> {
+    if (!db) return undefined;
+
+    if (id) {
+      return await db.frames.get(id);
+    }
+
+    const frames = await db.frames.toArray();
+    if (frames.length === 0) return undefined;
+
+    const active = frames.find((f) => f.isActive);
+    if (active) return active;
+
+    // Fallback to latest uploaded frame if no frame is explicitly active
+    return frames.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
+  }
+
+  /**
+   * Set a specific frame template as active.
+   */
+  static async setActiveFrame(id: string): Promise<void> {
+    if (!db) return;
+    const allFrames = await db.frames.toArray();
+    for (const f of allFrames) {
+      await db.frames.update(f.id, { isActive: f.id === id });
+    }
+  }
+
+  /**
+   * Delete a custom frame template by ID.
+   * If the active frame was deleted, promotes the next available frame to active.
    */
   static async deleteFrame(id: string = 'current_frame'): Promise<void> {
     if (!db) return;
+
+    const target = await db.frames.get(id);
+    const wasActive = target?.isActive;
+
     await db.frames.delete(id);
+
+    if (wasActive) {
+      const remaining = await db.frames.toArray();
+      if (remaining.length > 0) {
+        const nextActive = remaining.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
+        await db.frames.update(nextActive.id, { isActive: true });
+      }
+    }
   }
 
   /**

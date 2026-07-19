@@ -41,7 +41,7 @@ export class CameraService {
    * Fast-path: Start a stream directly without enumerating devices first.
    * If deviceId is provided, uses { exact: deviceId }.
    * If deviceId is empty/null, opens the browser default camera immediately.
-   * This is the fastest way to get a live preview — no enumeration overhead.
+   * Reuses the persistent cached stream across re-entry for zero-lag capture.
    */
   static async startStreamDirect(
     deviceId?: string | null,
@@ -53,11 +53,13 @@ export class CameraService {
 
     const targetDeviceId = deviceId || null;
 
-    // Reuse cached stream if it exists, is live, and matches requested device ID
-    if (this.cachedStream && this.cachedDeviceId === targetDeviceId) {
+    // Persistent Stream Reuse: return existing live stream instantly if available
+    if (this.cachedStream) {
       const active = this.cachedStream.getVideoTracks().every((t) => t.readyState === 'live');
       if (active) {
-        return this.cachedStream;
+        if (!targetDeviceId || this.cachedDeviceId === targetDeviceId) {
+          return this.cachedStream;
+        }
       }
     }
 
@@ -82,6 +84,46 @@ export class CameraService {
     this.cachedStream = stream;
     this.cachedDeviceId = targetDeviceId;
     return stream;
+  }
+
+  /**
+   * Captures a photo from a live Video Element with optional client-side filter baking.
+   * Renders the current video frame on a canvas at full resolution.
+   */
+  static async takePhoto(
+    videoElement: HTMLVideoElement,
+    filterCss: string = 'none'
+  ): Promise<Blob> {
+    const canvas = document.createElement('canvas');
+    canvas.width = videoElement.videoWidth || 1280;
+    canvas.height = videoElement.videoHeight || 720;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      throw new Error('Failed to get 2D canvas context for capture.');
+    }
+
+    // Bake filter into canvas context if set
+    if (filterCss && filterCss !== 'none') {
+      ctx.filter = filterCss;
+    }
+
+    // Capture the current frame from video element
+    ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+
+    return new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            resolve(blob);
+          } else {
+            reject(new Error('Failed to convert canvas frame to Blob.'));
+          }
+        },
+        'image/png',
+        1.0
+      );
+    });
   }
 
   /**
@@ -153,38 +195,6 @@ export class CameraService {
       this.cachedStream = null;
       this.cachedDeviceId = null;
     }
-  }
-
-  /**
-   * Captures a photo from a live Video Element.
-   * Renders the current video frame on a canvas at full resolution.
-   */
-  static async takePhoto(videoElement: HTMLVideoElement): Promise<Blob> {
-    const canvas = document.createElement('canvas');
-    canvas.width = videoElement.videoWidth || 1280;
-    canvas.height = videoElement.videoHeight || 720;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) {
-      throw new Error('Failed to get 2D canvas context for capture.');
-    }
-
-    // Capture the current frame from video element
-    ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
-
-    return new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob(
-        (blob) => {
-          if (blob) {
-            resolve(blob);
-          } else {
-            reject(new Error('Failed to convert canvas frame to Blob.'));
-          }
-        },
-        'image/png',
-        1.0
-      );
-    });
   }
 
   /**

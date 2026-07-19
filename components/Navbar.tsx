@@ -1,16 +1,19 @@
+/* eslint-disable @next/next/no-img-element */
 'use client';
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Camera, Image as ImageIcon, LayoutTemplate, Home, LogOut } from 'lucide-react';
+import { Camera, Image as ImageIcon, LayoutTemplate, Home, LogOut, Sun, Moon } from 'lucide-react';
 import { SyncIndicator } from './SyncIndicator';
 import { AdminService } from '@/services/AdminService';
+import { useTheme } from '@/context/ThemeContext';
 
 export const Navbar: React.FC = () => {
   const pathname = usePathname();
   const router = useRouter();
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const { isDarkMode, toggleTheme } = useTheme();
 
   // Sync auth state reactively when layout pathname routes change
   useEffect(() => {
@@ -25,25 +28,23 @@ export const Navbar: React.FC = () => {
 
   const navItems = [
     { label: 'Home', path: '/', icon: Home },
-    { label: 'Capture', path: '/capture', icon: Camera },
+    ...(isAdmin ? [{ label: 'Capture', path: '/capture', icon: Camera }] : []),
     { label: 'Gallery', path: '/gallery', icon: ImageIcon },
   ];
 
   return (
-    <nav className="sticky top-0 z-50 w-full border-b border-slate-800 bg-slate-950/60 backdrop-blur-md">
+    <nav className="sticky top-0 z-50 w-full border-b border-slate-800 dark:border-slate-800 border-slate-200 bg-white/70 dark:bg-slate-950/60 backdrop-blur-md transition-colors duration-300">
       <div className="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
           <div className="flex items-center">
-            <Link href="/" className="flex items-center gap-3 text-white">
+            <Link href="/" className="flex items-center gap-3">
               <img
                 src="/SSITE (2).png"
                 alt="SSITE Logo"
-                className="h-20 w-auto object-contain"
+                className="h-16 sm:h-20 w-auto object-contain transition-all duration-300"
+                style={{ filter: isDarkMode ? 'none' : 'invert(1) brightness(0)' }}
               />
-              <span className="font-sans font-black tracking-widest text-xs sm:text-sm text-white/80 border-l border-white/10 pl-3">
-                PHOTOBOOTH
-              </span>
             </Link>
           </div>
 
@@ -57,8 +58,8 @@ export const Navbar: React.FC = () => {
                   href={item.path}
                   className={`group relative overflow-hidden flex items-center px-6 py-2.5 rounded-none text-sm font-black border-0 transition-all duration-300 ease-out z-10 ${
                     isActive
-                      ? 'bg-white text-[#060814] opacity-100'
-                      : 'text-white/45 hover:text-[#060814] hover:opacity-100'
+                      ? 'bg-slate-900 text-white dark:bg-white dark:text-[#060814] opacity-100 shadow-md'
+                      : 'text-slate-800 dark:text-white/60 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
                   {/* Solid white slide background overlay on hover */}
@@ -71,9 +72,25 @@ export const Navbar: React.FC = () => {
             })}
           </div>
 
-          {/* Right side: Sync indicator & Auth Controls */}
+          {/* Right side: Theme Toggle, Sync indicator & Auth Controls */}
           <div className="flex items-center gap-3">
             <SyncIndicator />
+
+            {/* Theme Toggle Icon Button */}
+            <button
+              onClick={toggleTheme}
+              aria-label="Toggle theme mode"
+              title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              className="group relative overflow-hidden flex items-center justify-center p-2.5 rounded-xl border border-slate-300 dark:border-slate-800 text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-slate-900 transition-all duration-300 ease-out z-10 cursor-pointer"
+            >
+              <div className="absolute inset-0 bg-white -translate-x-full group-hover:translate-x-0 transition-transform duration-[350ms] cubic-bezier(0.16, 1, 0.3, 1) -z-10" />
+              {isDarkMode ? (
+                <Sun className="h-4 w-4 text-amber-400 transition-transform duration-300 group-hover:rotate-45" />
+              ) : (
+                <Moon className="h-4 w-4 text-indigo-600 transition-transform duration-300 group-hover:-rotate-12" />
+              )}
+            </button>
+
             {isAdmin ? (
               <div className="flex items-center gap-2">
                 <Link
@@ -86,7 +103,7 @@ export const Navbar: React.FC = () => {
                 </Link>
                 <button
                   onClick={handleLogout}
-                  className="group relative overflow-hidden flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border-0 text-slate-350 hover:text-[#060814] transition-colors duration-300 ease-out z-10 bg-slate-900"
+                  className="group relative overflow-hidden flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border-0 text-slate-300 hover:text-[#060814] transition-colors duration-300 ease-out z-10 bg-slate-900 dark:bg-slate-900"
                 >
                   <div className="absolute inset-0 bg-white -translate-x-full group-hover:translate-x-0 transition-transform duration-[350ms] cubic-bezier(0.16, 1, 0.3, 1) -z-10" />
                   <LogOut className="h-3.5 w-3.5" />

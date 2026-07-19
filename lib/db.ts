@@ -13,6 +13,11 @@ export class PhotoboothDatabase extends Dexie {
       frames: 'id',
       settings: 'id',
     });
+    this.version(2).stores({
+      photostrips: 'id, synced, createdAt',
+      frames: 'id, isActive, createdAt',
+      settings: 'id',
+    });
   }
 }
 

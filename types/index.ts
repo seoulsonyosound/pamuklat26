@@ -1,7 +1,10 @@
 export interface Photostrip {
   id: string; // Pre-generated UUID (string) to align with PocketBase
   filename: string;
-  imageBlob: Blob; // High-resolution PNG blob
+  imageBlob: Blob; // Compiled high-resolution PNG blob
+  rawPhotos?: Blob[]; // Array of the 4 raw camera snapshot Blobs
+  selectedFrameId?: string | null;
+  selectedFilterId?: string;
   createdAt: Date;
   uploadedAt: Date | null;
   synced: boolean;
@@ -9,10 +12,11 @@ export interface Photostrip {
 }
 
 export interface FrameTemplate {
-  id: string; // "current_frame" or custom ID
+  id: string; // Unique ID for frame template
   filename: string;
   imageBlob: Blob; // Transparent PNG blob
   createdAt: Date;
+  isActive?: boolean; // Indicates active frame status
 }
 
 export interface CameraSettings {

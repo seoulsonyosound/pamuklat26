@@ -4,9 +4,13 @@
 
 :root {
   --background: #05060f;
-  /* Slightly darker to make gradients glow more */
   --foreground: #f8fafc;
   --font-sans: 'Outfit', 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+html.light {
+  --background: #f8fafc;
+  --foreground: #0f172a;
 }
 
 body {
@@ -16,14 +20,21 @@ body {
   overflow-x: hidden;
   min-height: 100vh;
   position: relative;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* Sleek minimalist structural lines instead of gradients */
+/* Structural grid background lines */
 .grid-lines {
   background-size: 40px 40px;
   background-image: 
     linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+}
+
+html.light .grid-lines {
+  background-image: 
+    linear-gradient(to right, rgba(0, 0, 0, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 0, 0, 0.04) 1px, transparent 1px);
 }
 
 /* Premium Dark Mode Glassmorphism Card */
@@ -33,6 +44,14 @@ body {
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.04);
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.45);
+}
+
+html.light .glass-card {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  box-shadow: 0 10px 30px 0 rgba(0, 0, 0, 0.06);
 }
 
 .glass-card-hover {
@@ -48,16 +67,20 @@ body {
     0 0 15px 0 rgba(255, 0, 85, 0.15);
 }
 
+html.light .glass-card-hover:hover {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(255, 0, 85, 0.4);
+  box-shadow: 0 15px 40px 0 rgba(255, 0, 85, 0.12);
+}
+
 /* Keyframes for custom flash and shutter animations */
 @keyframes camera-flash {
   0% {
     opacity: 0;
   }
-
   20% {
     opacity: 1;
   }
-
   100% {
     opacity: 0;
   }
@@ -67,21 +90,25 @@ body {
   animation: camera-flash 0.4s ease-out forwards;
 }
 
-/* Custom Scrollbar for sleek dark look */
+/* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #05060f;
+  background: var(--background);
 }
 
 ::-webkit-scrollbar-thumb {
   background: #1e293b;
   border-radius: 9999px;
-  border: 2px solid #05060f;
+  border: 2px solid var(--background);
+}
+
+html.light ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: #334155;
-}
+}
