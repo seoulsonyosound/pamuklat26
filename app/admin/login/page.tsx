@@ -83,11 +83,13 @@ export default function AdminLoginPage() {
             />
           </div>
 
+          {/* Submit Button */}
           <button
             type="submit"
-            className="w-full flex items-center justify-center gap-2 px-5 py-3.5 mt-2 rounded-xl bg-gradient-to-r from-rose-500 to-indigo-600 hover:from-rose-600 hover:to-indigo-700 text-white font-bold transition-all shadow-lg shadow-rose-500/10 cursor-pointer border-0"
+            className="group/btn relative overflow-hidden flex items-center justify-center gap-2 px-5 py-4 mt-2 rounded-none bg-white/5 border-0 text-white hover:text-[#060814] font-bold transition-all duration-300 ease-out hover:-translate-y-0.5 active:translate-y-0 cursor-pointer z-10"
           >
-            Authenticate
+            <div className="absolute inset-0 bg-white -translate-x-full group-hover/btn:translate-x-0 transition-transform duration-[350ms] cubic-bezier(0.16, 1, 0.3, 1) -z-10" />
+            <span>Authenticate</span>
           </button>
         </form>
       </div>

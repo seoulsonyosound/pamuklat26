@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Download, Trash2, X, Image as ImageIcon, Cloud, CloudOff, ZoomIn, Loader2 } from 'lucide-react';
@@ -10,6 +11,7 @@ import { StorageService } from '@/services/storage/StorageService';
 import { Photostrip } from '@/types';
 
 export default function GalleryPage() {
+  const router = useRouter();
   const [selectedStrip, setSelectedStrip] = useState<Photostrip | null>(null);
   const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
 
@@ -100,12 +102,13 @@ export default function GalleryPage() {
           <p className="text-slate-400 text-sm max-w-xs mb-6">
             Start a capture session on the capture page to create your first event photostrip!
           </p>
-          <a
-            href="/capture"
-            className="px-6 py-3 rounded-xl bg-indigo-650 hover:bg-indigo-600 font-bold text-white transition-all shadow-lg shadow-indigo-650/20 border-0"
+          <button
+            onClick={() => router.push('/capture')}
+            className="group/btn relative overflow-hidden flex items-center justify-center gap-2 px-8 py-3.5 rounded-none bg-white/5 border-0 text-white hover:text-[#060814] font-bold transition-all duration-300 ease-out hover:-translate-y-0.5 active:translate-y-0 cursor-pointer z-10"
           >
-            Start Capture Session
-          </a>
+            <div className="absolute inset-0 bg-white -translate-x-full group-hover/btn:translate-x-0 transition-transform duration-[350ms] cubic-bezier(0.16, 1, 0.3, 1) -z-10" />
+            <span>Start Capture Session</span>
+          </button>
         </div>
       )}
 
@@ -182,7 +185,7 @@ export default function GalleryPage() {
                     </button>
                     <button
                       onClick={(e) => handleDelete(strip.id, e)}
-                      className="rounded-lg bg-slate-900 hover:bg-rose-500/10 p-1.5 text-slate-400 hover:text-rose-400 transition-colors border border-slate-850"
+                      className="rounded-lg bg-slate-900 hover:bg-rose-500/10 p-1.5 text-slate-400 hover:bg-rose-500/20 transition-colors border border-slate-850"
                       title="Delete strip"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -275,19 +278,23 @@ export default function GalleryPage() {
 
                 {/* Actions */}
                 <div className="flex flex-col gap-2.5 mt-8">
+                  {/* Download button: slide effect */}
                   <button
                     onClick={() => handleDownload(selectedStrip)}
-                    className="flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-indigo-650 hover:bg-indigo-600 text-white font-bold transition-all cursor-pointer shadow-lg shadow-indigo-650/10 border-0"
+                    className="group/btn relative overflow-hidden flex items-center justify-center gap-2 px-4 py-3.5 rounded-none bg-white/5 border-0 text-white hover:text-[#060814] font-bold transition-all duration-300 ease-out hover:-translate-y-0.5 active:translate-y-0 cursor-pointer z-10"
                   >
-                    <Download className="h-4.5 w-4.5" />
-                    Download PNG
+                    <div className="absolute inset-0 bg-white -translate-x-full group-hover/btn:translate-x-0 transition-transform duration-[350ms] cubic-bezier(0.16, 1, 0.3, 1) -z-10" />
+                    <Download className="h-4.5 w-4.5 text-[#ff0055] group-hover/btn:text-[#060814]" />
+                    <span>Download PNG</span>
                   </button>
+                  {/* Delete button: slide effect */}
                   <button
                     onClick={() => handleDelete(selectedStrip.id)}
-                    className="flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-slate-950 hover:bg-rose-500/10 text-rose-455 font-semibold border border-rose-500/5 hover:border-rose-500/15 transition-all cursor-pointer"
+                    className="group/btn relative overflow-hidden flex items-center justify-center gap-2 px-4 py-3.5 rounded-none bg-white/5 border-0 text-rose-455 font-semibold transition-all duration-300 ease-out hover:text-[#060814] hover:-translate-y-0.5 active:translate-y-0 cursor-pointer z-10"
                   >
-                    <Trash2 className="h-4.5 w-4.5" />
-                    Delete Strip
+                    <div className="absolute inset-0 bg-white -translate-x-full group-hover/btn:translate-x-0 transition-transform duration-[350ms] cubic-bezier(0.16, 1, 0.3, 1) -z-10" />
+                    <Trash2 className="h-4.5 w-4.5 text-rose-500 group-hover/btn:text-[#060814]" />
+                    <span>Delete Strip</span>
                   </button>
                 </div>
               </div>

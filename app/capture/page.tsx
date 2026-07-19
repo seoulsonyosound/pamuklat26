@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { Play, RefreshCw, Sparkles } from 'lucide-react';
+import { Play, RefreshCw, Sparkles, ImageIcon } from 'lucide-react';
 import { CameraPreview } from '@/components/CameraPreview';
 import { Countdown } from '@/components/Countdown';
 import { CaptureProgress } from '@/components/CaptureProgress';
@@ -17,6 +17,10 @@ export default function CapturePage() {
 
   // States
   const [isStreamActive, setIsStreamActive] = useState<boolean>(false);
+
+  // Stable callbacks to avoid re-triggering camera initialization
+  const handleStreamActive = useCallback(() => setIsStreamActive(true), []);
+  const handleStreamInactive = useCallback(() => setIsStreamActive(false), []);
   const [isCapturing, setIsCapturing] = useState<boolean>(false);
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [countdown, setCountdown] = useState<number>(0);
@@ -24,6 +28,16 @@ export default function CapturePage() {
   
   const [isFlashing, setIsFlashing] = useState<boolean>(false);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+
+  // Create object URLs from photo blobs for thumbnail display
+  const photoUrls = useMemo(() => photos.map((blob) => URL.createObjectURL(blob)), [photos]);
+
+  // Revoke old object URLs on change to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      photoUrls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [photoUrls]);
 
   const resetState = useCallback(() => {
     setIsCapturing(false);
@@ -138,12 +152,58 @@ export default function CapturePage() {
           </div>
         )}
 
+        {/* Captured Photos Thumbnails — shown above the camera */}
+        {photos.length > 0 && (
+          <div className="w-full max-w-3xl">
+            <div className="flex items-center gap-2 mb-3 px-1">
+              <ImageIcon className="h-4 w-4 text-indigo-400" />
+              <span className="text-xs font-bold tracking-wider text-slate-400 uppercase">
+                Captured ({photos.length} / 4)
+              </span>
+            </div>
+            <div className="grid grid-cols-4 gap-3">
+              {Array.from({ length: 4 }).map((_, idx) => (
+                <div
+                  key={idx}
+                  className={`relative aspect-video rounded-xl overflow-hidden border transition-all duration-500 ${
+                    idx < photos.length
+                      ? 'border-indigo-500/50 shadow-lg shadow-indigo-500/10 scale-100 opacity-100'
+                      : 'border-slate-800 bg-slate-900/50 scale-95 opacity-40'
+                  }`}
+                >
+                  {idx < photos.length ? (
+                    <img
+                      src={photoUrls[idx]}
+                      alt={`Capture ${idx + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <span className="text-slate-600 text-xs font-bold">{idx + 1}</span>
+                    </div>
+                  )}
+                  {/* Step badge */}
+                  <div
+                    className={`absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-md text-[10px] font-bold ${
+                      idx < photos.length
+                        ? 'bg-indigo-500/90 text-white'
+                        : 'bg-slate-800/80 text-slate-500'
+                    }`}
+                  >
+                    #{idx + 1}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Live Camera Box */}
         <div className="relative w-full max-w-3xl rounded-3xl overflow-hidden shadow-2xl">
           <CameraPreview
             videoRef={videoRef}
-            onStreamActive={() => setIsStreamActive(true)}
-            onStreamInactive={() => setIsStreamActive(false)}
+            onStreamActive={handleStreamActive}
+            onStreamInactive={handleStreamInactive}
           />
 
           {/* Shutter Flash Animation overlay */}
@@ -158,20 +218,26 @@ export default function CapturePage() {
 
         {/* Capture Control Button */}
         {!isCapturing && !isProcessing && (
-          <div className="flex flex-col items-center gap-3">
+          <div className="flex flex-col items-center gap-4">
             <button
               onClick={startCaptureSequence}
               disabled={!isStreamActive}
-              className={`flex items-center gap-2.5 px-8 py-4 rounded-2xl text-base font-bold text-white transition-all shadow-xl border-0 ${
+              className={`group/btn relative overflow-hidden flex items-center gap-3 px-10 py-5 rounded-none font-black text-sm tracking-[0.15em] border-0 transition-all duration-300 ease-out z-10 ${
                 isStreamActive
-                  ? 'bg-gradient-to-r from-rose-500 to-indigo-600 hover:from-rose-600 hover:to-indigo-700 hover:scale-[1.02] shadow-rose-500/10 cursor-pointer'
-                  : 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed'
+                  ? 'bg-transparent text-white hover:text-[#060814] hover:-translate-y-1 active:translate-y-0 cursor-pointer shadow-lg shadow-white/[0.02]'
+                  : 'bg-white/5 text-white/20 cursor-not-allowed'
               }`}
             >
-              <Play className="h-5 w-5" />
-              Start Capture Sequence
+              {/* White slide background overlay on hover (only active if stream active) */}
+              {isStreamActive && (
+                <div className="absolute inset-0 bg-white -translate-x-full group-hover/btn:translate-x-0 transition-transform duration-[400ms] cubic-bezier(0.16, 1, 0.3, 1) -z-10" />
+              )}
+              <Play className={`h-5 w-5 transition-transform duration-300 ${
+                isStreamActive ? 'text-[#ff0055] group-hover/btn:rotate-12 group-hover/btn:text-[#060814]' : 'text-white/10'
+              }`} />
+              <span>START CAPTURE SEQUENCE</span>
             </button>
-            <p className="text-xs text-slate-550 text-center font-medium max-w-xs">
+            <p className="text-xs text-white/30 text-center font-medium max-w-xs leading-relaxed">
               This will capture 4 snapshots in a row with a 5-second countdown between each.
             </p>
           </div>

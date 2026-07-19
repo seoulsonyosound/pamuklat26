@@ -22,44 +22,72 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
   const [error, setError] = useState<string | null>(null);
   
   const streamRef = useRef<MediaStream | null>(null);
+  const isInitializedRef = useRef<boolean>(false);
 
-  // Stops current stream
+  // Store callback refs to avoid dependency cycles
+  const onStreamActiveRef = useRef(onStreamActive);
+  const onStreamInactiveRef = useRef(onStreamInactive);
+  const videoRefStable = useRef(videoRef);
+
+  // Keep refs in sync with latest props
+  useEffect(() => { onStreamActiveRef.current = onStreamActive; }, [onStreamActive]);
+  useEffect(() => { onStreamInactiveRef.current = onStreamInactive; }, [onStreamInactive]);
+  useEffect(() => { videoRefStable.current = videoRef; }, [videoRef]);
+
+  // Stops current stream — uses refs so no external dependencies
   const stopWebcam = useCallback(() => {
     if (streamRef.current) {
       CameraService.stopStream(streamRef.current);
       streamRef.current = null;
-      onStreamInactive();
+      onStreamInactiveRef.current();
     }
-  }, [onStreamInactive]);
+  }, []);
 
-  // Starts the webcam stream with selected device ID
-  const startWebcam = useCallback(async (deviceId: string) => {
+  // Starts the webcam stream with selected device ID — uses refs so no external dependencies
+  const startWebcam = useCallback(async (deviceId?: string | null) => {
     setIsLoading(true);
     setError(null);
-    stopWebcam();
+
+    // Stop any existing stream first
+    if (streamRef.current) {
+      CameraService.stopStream(streamRef.current);
+      streamRef.current = null;
+    }
 
     try {
-      const stream = await CameraService.startStream(deviceId);
+      // Use startStreamDirect for fastest possible init (no enumeration)
+      const stream = await CameraService.startStreamDirect(deviceId);
       streamRef.current = stream;
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.onloadedmetadata = () => {
+      const video = videoRefStable.current?.current;
+      if (video) {
+        video.srcObject = stream;
+        // Use 'onplaying' — fires as soon as actual frames are rendering (faster than onloadedmetadata)
+        video.onplaying = () => {
           setIsLoading(false);
-          onStreamActive(stream);
+          onStreamActiveRef.current(stream);
+          video.onplaying = null; // Only fire once
         };
+        // Kick-start playback immediately
+        video.play().catch(() => {});
       }
+      return stream;
     } catch (err: unknown) {
       console.error(`Failed to start camera ${deviceId}:`, err);
       const msg = err instanceof Error ? err.message : 'Unknown camera error';
       setError(msg || 'Failed to start camera. Please verify permissions or connection.');
       setIsLoading(false);
-      onStreamInactive();
+      onStreamInactiveRef.current();
+      return null;
     }
-  }, [onStreamActive, onStreamInactive, videoRef, stopWebcam]);
+  }, []);
 
-  // Initialize and load cameras
+  // Initialize camera — runs ONCE on mount
+  // Strategy: open the default stream AND read settings IN PARALLEL for fastest startup
   useEffect(() => {
+    if (isInitializedRef.current) return;
+    isInitializedRef.current = true;
+
     let active = true;
 
     async function initCamera() {
@@ -67,31 +95,74 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
       setError(null);
 
       try {
-        // 1. Get list of cameras
-        const list = await CameraService.getCameras();
+        // 1. Fire BOTH in parallel: default stream + settings read
+        const [defaultStream, settings] = await Promise.all([
+          CameraService.startStreamDirect(null).catch(() => null),
+          StorageService.getCameraSettings().catch(() => undefined),
+        ]);
+        if (!active) {
+          // Cleanup if component unmounted during init
+          if (defaultStream) CameraService.stopStream(defaultStream);
+          return;
+        }
+
+        const savedDeviceId = settings?.selectedDeviceId || null;
+
+        // 2. Check if we need to switch to a different saved camera
+        const defaultTrack = defaultStream?.getVideoTracks()[0];
+        const defaultDeviceId = defaultTrack?.getSettings()?.deviceId || '';
+        const needsSwitch = savedDeviceId && savedDeviceId !== defaultDeviceId;
+
+        let stream: MediaStream | null = null;
+
+        if (needsSwitch && defaultStream) {
+          // We have a saved device that differs from default — stop default, open saved
+          CameraService.stopStream(defaultStream);
+          stream = await startWebcam(savedDeviceId);
+          // Fall back to default if saved device fails
+          if (!stream && active) {
+            stream = await startWebcam(null);
+          }
+        } else if (defaultStream) {
+          // Default stream IS the right camera — just attach it to video
+          streamRef.current = defaultStream;
+          const video = videoRefStable.current?.current;
+          if (video) {
+            video.srcObject = defaultStream;
+            video.onplaying = () => {
+              setIsLoading(false);
+              onStreamActiveRef.current(defaultStream);
+              video.onplaying = null;
+            };
+            video.play().catch(() => {});
+          }
+          stream = defaultStream;
+        } else {
+          // Default stream failed — try one more time
+          stream = await startWebcam(null);
+        }
+
+        if (!active || !stream) return;
+
+        // 3. Enumerate devices in the background AFTER stream is live
+        const list = await CameraService.getCameras(stream);
         if (!active) return;
-        
+
         setCameras(list);
 
-        if (list.length === 0) {
-          throw new Error('No webcam detected. Please plug in a USB camera.');
-        }
+        if (list.length === 0) return;
 
-        // 2. Load stored settings
-        const settings = await StorageService.getCameraSettings();
-        if (!active) return;
+        // Set the dropdown to the active device
+        const activeTrack = stream.getVideoTracks()[0];
+        const activeDeviceId = activeTrack?.getSettings()?.deviceId || '';
 
-        let targetId = '';
-        if (settings?.selectedDeviceId && list.some(c => c.deviceId === settings.selectedDeviceId)) {
-          targetId = settings.selectedDeviceId;
+        if (activeDeviceId) {
+          setSelectedCameraId(activeDeviceId);
+        } else if (savedDeviceId) {
+          setSelectedCameraId(savedDeviceId);
         } else {
-          // Detect Logitech webcam by label prefix
-          const logitech = list.find(c => c.label.toLowerCase().includes('logitech'));
-          targetId = logitech ? logitech.deviceId : list[0].deviceId;
+          setSelectedCameraId(list[0].deviceId);
         }
-
-        setSelectedCameraId(targetId);
-        await startWebcam(targetId);
       } catch (err: unknown) {
         if (!active) return;
         console.error('Camera initialization error:', err);
@@ -180,3 +251,4 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
   );
 };
 export default CameraPreview;
+

@@ -131,12 +131,14 @@ export default function AdminFramePage() {
             Upload a transparent PNG overlay to customize the branding for your event.
           </p>
         </div>
+        {/* Logout Button */}
         <button
           onClick={handleLogout}
-          className="self-start flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold border border-slate-800 transition-all cursor-pointer"
+          className="group/btn relative overflow-hidden flex items-center gap-2 px-4 py-2.5 rounded-none bg-white/5 border-0 text-slate-300 hover:text-[#060814] font-bold transition-all duration-300 ease-out hover:-translate-y-0.5 active:translate-y-0 cursor-pointer z-10"
         >
+          <div className="absolute inset-0 bg-white -translate-x-full group-hover/btn:translate-x-0 transition-transform duration-[350ms] cubic-bezier(0.16, 1, 0.3, 1) -z-10" />
           <LogOut className="h-4 w-4" />
-          Logout
+          <span>Logout</span>
         </button>
       </div>
 
@@ -183,8 +185,8 @@ export default function AdminFramePage() {
                 <Upload className="h-7 w-7" />
               </div>
               <p className="text-slate-205 text-sm font-bold">Select PNG Frame</p>
-              <p className="text-slate-500 text-xs mt-1">Drag and drop or browse files</p>
-              <p className="text-slate-500 text-[10px] mt-2 italic">Recommended size: 800 x 2400 pixels</p>
+              <p className="text-slate-550 text-xs mt-1">Drag and drop or browse files</p>
+              <p className="text-slate-550 text-[10px] mt-2 italic">Recommended size: 800 x 2400 pixels</p>
             </div>
 
             {frameUrl && (
@@ -194,13 +196,15 @@ export default function AdminFramePage() {
                     <p className="text-slate-300 text-xs font-semibold uppercase tracking-wider">Active Custom Frame</p>
                     <p className="text-white text-sm font-bold truncate mt-0.5">{frameName}</p>
                   </div>
+                  {/* Remove template button: slide effect */}
                   <button
                     onClick={handleRemoveFrame}
                     disabled={isSaving}
-                    className="rounded-xl bg-rose-500/15 hover:bg-rose-500/25 p-2.5 text-rose-455 border border-rose-500/10 transition-all cursor-pointer"
+                    className="group/btn relative overflow-hidden rounded-none bg-white/5 border-0 p-2.5 text-rose-455 hover:text-[#060814] transition-all duration-300 ease-out hover:-translate-y-0.5 active:translate-y-0 cursor-pointer z-10"
                     title="Remove template"
                   >
-                    <Trash2 className="h-4.5 w-4.5" />
+                    <div className="absolute inset-0 bg-white -translate-x-full group-hover/btn:translate-x-0 transition-transform duration-[350ms] cubic-bezier(0.16, 1, 0.3, 1) -z-10" />
+                    <Trash2 className="h-4.5 w-4.5 text-rose-550 group-hover/btn:text-[#060814]" />
                   </button>
                 </div>
               </div>

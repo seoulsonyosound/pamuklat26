@@ -85,38 +85,63 @@ export class CanvasService {
       throw new Error('Failed to obtain 2D canvas context.');
     }
 
-    // 2. Draw background (Premium Pure White)
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(0, 0, this.CANVAS_WIDTH, this.CANVAS_HEIGHT);
+    // 2. Load all 4 photos concurrently (and frame if provided)
+    const imagePromises = photos.map((photoBlob) => this.loadBlobAsImage(photoBlob));
+    const framePromise = customFrameBlob ? this.loadBlobAsImage(customFrameBlob) : null;
 
-    // 3. Load all 4 photos concurrently
-    const images = await Promise.all(
-      photos.map((photoBlob) => this.loadBlobAsImage(photoBlob))
-    );
+    const images = await Promise.all(imagePromises);
+    const frameImg = framePromise ? await framePromise : null;
 
-    // 4. Draw the 4 photos in their designated vertical slots
-    for (let i = 0; i < 4; i++) {
-      const y =
-        this.VERTICAL_MARGIN +
-        i * (this.PHOTO_HEIGHT + this.PHOTO_GAP);
-      
-      this.drawImageCover(
-        ctx,
-        images[i],
-        this.HORIZONTAL_MARGIN,
-        y,
-        this.PHOTO_WIDTH,
-        this.PHOTO_HEIGHT
-      );
-    }
+    if (frameImg) {
+      // === CUSTOM FRAME PATH ===
+      // Layer order: white background → frame template → photos ON TOP
+      // Photos are always visible above the frame template
 
-    // 5. Apply Frame Overlay
-    if (customFrameBlob) {
-      // Draw custom transparent PNG frame
-      const frameImg = await this.loadBlobAsImage(customFrameBlob);
+      // Step 1: White background
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, this.CANVAS_WIDTH, this.CANVAS_HEIGHT);
+
+      // Step 2: Draw the custom frame template as background
       ctx.drawImage(frameImg, 0, 0, this.CANVAS_WIDTH, this.CANVAS_HEIGHT);
+
+      // Step 3: Draw photos ON TOP of the frame — always visible
+      for (let i = 0; i < 4; i++) {
+        const y =
+          this.VERTICAL_MARGIN +
+          i * (this.PHOTO_HEIGHT + this.PHOTO_GAP);
+        
+        this.drawImageCover(
+          ctx,
+          images[i],
+          this.HORIZONTAL_MARGIN,
+          y,
+          this.PHOTO_WIDTH,
+          this.PHOTO_HEIGHT
+        );
+      }
     } else {
-      // Draw a beautiful default frame layout
+      // === DEFAULT FRAME PATH (no custom frame) ===
+      // Background
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, this.CANVAS_WIDTH, this.CANVAS_HEIGHT);
+
+      // Draw the 4 photos in their designated vertical slots
+      for (let i = 0; i < 4; i++) {
+        const y =
+          this.VERTICAL_MARGIN +
+          i * (this.PHOTO_HEIGHT + this.PHOTO_GAP);
+        
+        this.drawImageCover(
+          ctx,
+          images[i],
+          this.HORIZONTAL_MARGIN,
+          y,
+          this.PHOTO_WIDTH,
+          this.PHOTO_HEIGHT
+        );
+      }
+
+      // Draw default frame on top
       this.drawDefaultFrame(ctx);
     }
 

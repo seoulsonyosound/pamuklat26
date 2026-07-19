@@ -1,22 +1,87 @@
 export class CameraService {
+  private static cachedStream: MediaStream | null = null;
+  private static cachedDeviceId: string | null = null;
+
   /**
    * Get all video input devices (cameras) connected.
+   * If an active stream is provided, uses it for permission context (avoids opening a temp stream).
    */
-  static async getCameras(): Promise<MediaDeviceInfo[]> {
+  static async getCameras(activeStream?: MediaStream): Promise<MediaDeviceInfo[]> {
     if (typeof navigator === 'undefined' || !navigator.mediaDevices) {
       return [];
     }
     
-    // Ensure we trigger permissions first if needed to get labels
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      this.stopStream(stream);
-    } catch (err) {
-      console.warn('Failed to pre-acquire user media for camera labels:', err);
+    let devices = await navigator.mediaDevices.enumerateDevices();
+    const videoDevices = devices.filter((d) => d.kind === 'videoinput');
+
+    // If labels are empty and we don't already have a stream, trigger a permission prompt
+    const hasLabels = videoDevices.some((d) => d.label.length > 0);
+    if (!hasLabels && videoDevices.length > 0 && !activeStream) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        this.stopStreamForce(stream);
+      } catch (err) {
+        console.warn('Failed to pre-acquire user media for camera labels:', err);
+      }
+      devices = await navigator.mediaDevices.enumerateDevices();
+      return devices.filter((device) => device.kind === 'videoinput');
     }
 
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    return devices.filter((device) => device.kind === 'videoinput');
+    // If we have an active stream, labels should already be available
+    // but re-enumerate just in case
+    if (activeStream && !hasLabels) {
+      devices = await navigator.mediaDevices.enumerateDevices();
+      return devices.filter((device) => device.kind === 'videoinput');
+    }
+
+    return videoDevices;
+  }
+
+  /**
+   * Fast-path: Start a stream directly without enumerating devices first.
+   * If deviceId is provided, uses { exact: deviceId }.
+   * If deviceId is empty/null, opens the browser default camera immediately.
+   * This is the fastest way to get a live preview — no enumeration overhead.
+   */
+  static async startStreamDirect(
+    deviceId?: string | null,
+    resolution: string = '1280x720'
+  ): Promise<MediaStream> {
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices) {
+      throw new Error('Media Devices API is not supported in this browser.');
+    }
+
+    const targetDeviceId = deviceId || null;
+
+    // Reuse cached stream if it exists, is live, and matches requested device ID
+    if (this.cachedStream && this.cachedDeviceId === targetDeviceId) {
+      const active = this.cachedStream.getVideoTracks().every((t) => t.readyState === 'live');
+      if (active) {
+        return this.cachedStream;
+      }
+    }
+
+    // Stop old cached stream if active to prevent multiple camera reservations
+    if (this.cachedStream) {
+      this.stopStreamForce(this.cachedStream);
+      this.cachedStream = null;
+    }
+
+    const [width, height] = resolution.split('x').map(Number);
+
+    const constraints: MediaStreamConstraints = {
+      audio: false,
+      video: {
+        deviceId: targetDeviceId ? { exact: targetDeviceId } : undefined,
+        width: width ? { ideal: width } : { ideal: 1280 },
+        height: height ? { ideal: height } : { ideal: 720 },
+      },
+    };
+
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    this.cachedStream = stream;
+    this.cachedDeviceId = targetDeviceId;
+    return stream;
   }
 
   /**
@@ -47,24 +112,28 @@ export class CameraService {
       }
     }
 
-    const [width, height] = resolution.split('x').map(Number);
-
-    const constraints: MediaStreamConstraints = {
-      audio: false,
-      video: {
-        deviceId: deviceId ? { exact: deviceId } : undefined,
-        width: width ? { ideal: width } : { ideal: 1280 },
-        height: height ? { ideal: height } : { ideal: 720 },
-      },
-    };
-
-    return await navigator.mediaDevices.getUserMedia(constraints);
+    return await this.startStreamDirect(deviceId, resolution);
   }
 
   /**
-   * Stop all tracks on the stream.
+   * Stop all tracks on the stream, but KEEP it if it is the cached global stream
+   * to ensure instant warm re-entry.
    */
   static stopStream(stream: MediaStream | null): void {
+    if (!stream) return;
+    
+    // Skip stopping if this is the active cache stream - keeps camera hardware warm
+    if (stream === this.cachedStream) {
+      return;
+    }
+    
+    this.stopStreamForce(stream);
+  }
+
+  /**
+   * Helper to force shutdown a stream immediately.
+   */
+  private static stopStreamForce(stream: MediaStream | null): void {
     if (!stream) return;
     stream.getTracks().forEach((track) => {
       try {
@@ -73,6 +142,17 @@ export class CameraService {
         console.error('Failed to stop stream track:', err);
       }
     });
+  }
+
+  /**
+   * Fully release the cached background stream (e.g. for complete teardown)
+   */
+  static releaseCachedStream(): void {
+    if (this.cachedStream) {
+      this.stopStreamForce(this.cachedStream);
+      this.cachedStream = null;
+      this.cachedDeviceId = null;
+    }
   }
 
   /**

@@ -120,46 +120,55 @@ const PreviewContent: React.FC = () => {
 
         {/* Action Buttons Box */}
         <div className="flex flex-col sm:flex-row md:flex-col gap-3">
+          {/* Download Button: Enlarged, Transparent with White Slide-in, no rounded corners */}
           <button
             onClick={handleDownload}
-            className="flex items-center justify-center gap-2.5 px-6 py-4 rounded-2xl bg-indigo-650 hover:bg-indigo-600 text-white font-bold transition-all shadow-xl shadow-indigo-650/20 cursor-pointer border-0"
+            className="group/btn relative overflow-hidden flex items-center justify-center gap-3.5 px-10 py-6.5 rounded-none bg-white/5 border-0 text-white hover:text-[#060814] font-black text-sm tracking-[0.15em] transition-all duration-300 ease-out hover:-translate-y-0.5 active:translate-y-0 cursor-pointer z-10"
           >
-            <Download className="h-5 w-5" />
-            Download Photostrip
+            <div className="absolute inset-0 bg-white -translate-x-full group-hover/btn:translate-x-0 transition-transform duration-[350ms] cubic-bezier(0.16, 1, 0.3, 1) -z-10" />
+            <Download className="h-5.5 w-5.5 text-[#ff0055] group-hover/btn:text-[#060814]" />
+            <span>DOWNLOAD PHOTOSTRIP</span>
           </button>
 
           <div className="grid grid-cols-2 gap-3 w-full">
+            {/* Retake Button: no rounded corners */}
             <button
               onClick={handleRetake}
               disabled={isDeleting}
-              className="flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-slate-900 hover:bg-slate-800 text-rose-455 font-semibold border border-rose-500/10 hover:border-rose-500/20 transition-all cursor-pointer disabled:opacity-50"
+              className="group/btn relative overflow-hidden flex items-center justify-center gap-2 px-4 py-4 rounded-none bg-white/5 border-0 text-rose-455 font-bold transition-all duration-300 ease-out hover:text-[#060814] hover:-translate-y-0.5 active:translate-y-0 cursor-pointer z-10 disabled:opacity-50"
             >
-              <Trash2 className="h-4.5 w-4.5" />
-              Retake
+              <div className="absolute inset-0 bg-white -translate-x-full group-hover/btn:translate-x-0 transition-transform duration-[350ms] cubic-bezier(0.16, 1, 0.3, 1) -z-10" />
+              <Trash2 className="h-4.5 w-4.5 text-rose-500 group-hover/btn:text-[#060814]" />
+              <span>Retake</span>
             </button>
+            
+            {/* Gallery Button: no rounded corners */}
             <button
               onClick={() => router.push('/gallery')}
-              className="flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-slate-800/60 hover:bg-slate-800 text-indigo-400 font-semibold border border-slate-700/50 transition-all cursor-pointer"
+              className="group/btn relative overflow-hidden flex items-center justify-center gap-2 px-4 py-4 rounded-none bg-white/5 border-0 text-indigo-400 font-bold transition-all duration-300 ease-out hover:text-[#060814] hover:-translate-y-0.5 active:translate-y-0 cursor-pointer z-10"
             >
-              <ImageIcon className="h-4.5 w-4.5" />
-              Gallery
+              <div className="absolute inset-0 bg-white -translate-x-full group-hover/btn:translate-x-0 transition-transform duration-[350ms] cubic-bezier(0.16, 1, 0.3, 1) -z-10" />
+              <ImageIcon className="h-4.5 w-4.5 text-indigo-400 group-hover/btn:text-[#060814]" />
+              <span>Gallery</span>
             </button>
           </div>
         </div>
 
         {/* Sync Info Banner */}
-        <div className="rounded-2xl bg-slate-950/40 border border-slate-900/50 p-4 backdrop-blur-md">
+        <div className="rounded-2xl bg-slate-950/40 border border-slate-900/50 p-4.5 backdrop-blur-md">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-slate-300 text-xs font-bold uppercase tracking-wider">Device ID Reference</p>
               <p className="text-slate-400 text-sm font-semibold mt-0.5">{photostrip.deviceId}</p>
             </div>
+            {/* Next Strip Button: no rounded corners */}
             <button
               onClick={() => router.push('/capture')}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 text-xs font-bold transition-all cursor-pointer"
+              className="group/btn relative overflow-hidden flex items-center gap-1.5 px-4.5 py-3 rounded-none bg-white/5 border-0 text-indigo-400 font-bold transition-all duration-300 ease-out hover:text-[#060814] hover:-translate-y-0.5 active:translate-y-0 cursor-pointer z-10"
             >
-              Next Strip
-              <ArrowRight className="h-3.5 w-3.5" />
+              <div className="absolute inset-0 bg-white -translate-x-full group-hover/btn:translate-x-0 transition-transform duration-[350ms] cubic-bezier(0.16, 1, 0.3, 1) -z-10" />
+              <span>Next Strip</span>
+              <ArrowRight className="h-3.5 w-3.5 text-indigo-455 group-hover/btn:text-[#060814]" />
             </button>
           </div>
         </div>
