@@ -23,5 +23,6 @@ export interface CameraSettings {
   id: string; // "camera_settings"
   selectedDeviceId: string;
   resolution: string; // e.g. "1280x720"
+  isMirrored?: boolean;
   updatedAt: Date;
 }

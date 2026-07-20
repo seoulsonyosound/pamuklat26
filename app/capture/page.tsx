@@ -12,10 +12,12 @@ import { CameraService } from '@/services/camera/CameraService';
 import { CanvasService } from '@/services/CanvasService';
 import { StorageService } from '@/services/storage/StorageService';
 import { AdminService } from '@/services/AdminService';
+import { useCameraContext } from '@/context/CameraContext';
 
 export default function CapturePage() {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const { isMirrored } = useCameraContext();
 
   // Guard the capture page for authenticated Admin only
   useEffect(() => {
@@ -88,8 +90,8 @@ export default function CapturePage() {
       // 2. Play white flash animation
       setIsFlashing(true);
 
-      // 3. Take raw canvas photo snapshot (natural camera pass-through)
-      const photoBlob = await CameraService.takePhoto(videoRef.current, 'none');
+      // 3. Take raw canvas photo snapshot (natural camera pass-through, applying mirroring if set)
+      const photoBlob = await CameraService.takePhoto(videoRef.current, 'none', isMirrored);
       const nextPhotos = [...photos, photoBlob];
       setPhotos(nextPhotos);
 

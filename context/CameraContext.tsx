@@ -1,11 +1,13 @@
 'use client';
 
 import React, { createContext, useContext, useRef, useState, useCallback, useEffect } from 'react';
+import { StorageService } from '@/services/storage/StorageService';
 
 interface CameraContextType {
   stream: MediaStream | null;
   isLoading: boolean;
   error: string | null;
+  isMirrored: boolean;
   getOrStartStream: (deviceId?: string | null) => Promise<MediaStream | null>;
   stopStream: () => void;
   releaseStreamForce: () => void;
@@ -20,6 +22,7 @@ export const CameraProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const isMirrored = true;
 
   const getOrStartStream = useCallback(async (deviceId?: string | null): Promise<MediaStream | null> => {
     const targetId = deviceId || null;
@@ -104,6 +107,7 @@ export const CameraProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         stream,
         isLoading,
         error,
+        isMirrored,
         getOrStartStream,
         stopStream,
         releaseStreamForce,

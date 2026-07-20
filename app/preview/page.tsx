@@ -168,7 +168,7 @@ const PreviewContent: React.FC = () => {
   return (
     <div className="flex-grow grid grid-cols-1 md:grid-cols-5 gap-8 items-start max-w-6xl mx-auto py-4 w-full relative">
       {/* Left Side: Real-time Composite Preview (2 Cols) */}
-      <div className="md:col-span-2 flex flex-col items-center gap-3 sticky top-20">
+      <div className="md:col-span-2 flex flex-col items-center gap-3 md:sticky md:top-20">
         <div className="relative w-[240px] sm:w-[280px] aspect-[1/3] rounded-3xl overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-800/80 bg-white transform hover:scale-[1.01] transition-all duration-300">
           <img
             src={imageUrl}
@@ -191,7 +191,7 @@ const PreviewContent: React.FC = () => {
       </div>
 
       {/* Right Side: Scrollable layout sidebar for controls (overflow-y-auto h-full) */}
-      <div className="md:col-span-3 w-full max-w-xl mx-auto px-4 py-6 flex flex-col gap-6 overflow-y-auto h-full">
+      <div className="md:col-span-3 w-full max-w-xl mx-auto px-4 py-6 flex flex-col gap-6 md:overflow-y-auto md:h-full">
         <div>
           <h1 className="text-3xl font-black bg-gradient-to-r from-[#FF0055] via-[#8B5CF6] to-[#00D2FF] bg-clip-text text-transparent">
             Perfect Captured!
@@ -202,7 +202,7 @@ const PreviewContent: React.FC = () => {
         </div>
 
         {/* 1. Photobooth Filters Grid Card (w-full bg-white rounded-2xl p-6 md:p-8 flex flex-col gap-6 h-auto block clear-both overflow-visible) */}
-        <div className="w-full bg-white rounded-2xl p-6 md:p-8 flex flex-col gap-6 h-auto block clear-both overflow-visible">
+        <div className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/60 rounded-2xl p-6 md:p-8 flex flex-col gap-6 h-auto block clear-both overflow-visible shadow-sm">
           <FilterSelectorBar
             activeFilterId={selectedFilter.id}
             onSelectFilter={handleFilterSelect}
@@ -211,13 +211,13 @@ const PreviewContent: React.FC = () => {
         </div>
 
         {/* 2. Visual Border Frame Template Selection Gallery (w-full bg-white rounded-2xl p-6 md:p-8 flex flex-col gap-6 h-auto block clear-both overflow-visible) */}
-        <div className="w-full bg-white rounded-2xl p-6 md:p-8 flex flex-col gap-6 h-auto block clear-both overflow-visible">
+        <div className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/60 rounded-2xl p-6 md:p-8 flex flex-col gap-6 h-auto block clear-both overflow-visible shadow-sm">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-505 dark:text-slate-450">
-              <LayoutTemplate className="h-3.5 w-3.5 text-indigo-505" />
+            <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              <LayoutTemplate className="h-3.5 w-3.5 text-indigo-500" />
               <span>Border Frame Template</span>
             </div>
-            <span className="text-[10px] font-semibold text-slate-500 italic">
+            <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 italic">
               {frames.length} Template{frames.length !== 1 ? 's' : ''} Available
             </span>
           </div>
@@ -229,10 +229,10 @@ const PreviewContent: React.FC = () => {
               type="button"
               onClick={() => handleFrameSelect(null)}
               disabled={isRecomposing}
-              className={`group transition-all duration-305 flex-shrink-0 w-[90px] h-[110px] p-2 flex items-center justify-center border rounded-xl bg-white shrink-0 cursor-pointer disabled:opacity-50 ${
+              className={`group transition-all duration-305 flex-shrink-0 w-[90px] h-[110px] p-2 flex items-center justify-center border rounded-xl bg-white dark:bg-slate-950/40 shrink-0 cursor-pointer disabled:opacity-50 ${
                 selectedFrameId === null
                   ? 'border-indigo-500 ring-2 ring-indigo-500/20 scale-[1.02]'
-                  : 'text-slate-700 dark:text-slate-355 hover:bg-slate-50 border-slate-205 dark:border-slate-800'
+                  : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/80 border-slate-200 dark:border-slate-800'
               }`}
             >
               {/* Silhouette preview */}
@@ -259,10 +259,10 @@ const PreviewContent: React.FC = () => {
                   type="button"
                   onClick={() => handleFrameSelect(frame.id)}
                   disabled={isRecomposing}
-                  className={`group transition-all duration-305 flex-shrink-0 w-[90px] h-[110px] p-2 flex items-center justify-center border rounded-xl bg-white shrink-0 cursor-pointer disabled:opacity-50 ${
+                  className={`group transition-all duration-305 flex-shrink-0 w-[90px] h-[110px] p-2 flex items-center justify-center border rounded-xl bg-white dark:bg-slate-950/40 shrink-0 cursor-pointer disabled:opacity-50 ${
                     isActive
                       ? 'border-indigo-500 ring-2 ring-indigo-500/20 scale-[1.02]'
-                      : 'text-slate-700 dark:text-slate-355 hover:bg-slate-50 border-slate-205 dark:border-slate-800'
+                      : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/80 border-slate-200 dark:border-slate-800'
                   }`}
                 >
                   {/* Real transparent PNG visual overlay preview */}

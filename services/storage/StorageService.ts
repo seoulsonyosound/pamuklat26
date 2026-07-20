@@ -156,11 +156,12 @@ export class StorageService {
   /**
    * Save camera settings.
    */
-  static async saveCameraSettings(selectedDeviceId: string, resolution: string = '1280x720'): Promise<void> {
+  static async saveCameraSettings(selectedDeviceId: string, resolution: string = '1280x720', isMirrored: boolean = false): Promise<void> {
     const settings: CameraSettings = {
       id: 'camera_settings',
       selectedDeviceId,
       resolution,
+      isMirrored,
       updatedAt: new Date(),
     };
     await IndexedDBService.saveCameraSettings(settings);

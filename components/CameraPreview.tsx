@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { Camera, AlertCircle, RefreshCw } from 'lucide-react';
+import { AlertCircle, RefreshCw } from 'lucide-react';
 import { useCameraContext } from '@/context/CameraContext';
 import { CameraService } from '@/services/camera/CameraService';
 import { StorageService } from '@/services/storage/StorageService';
@@ -19,7 +19,7 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
   videoRef,
   activeFilterCss = 'none',
 }) => {
-  const { stream: globalStream, isLoading: isContextLoading, error: contextError, getOrStartStream, stopStream } = useCameraContext();
+  const { stream: globalStream, isLoading: isContextLoading, error: contextError, isMirrored, getOrStartStream, stopStream } = useCameraContext();
 
   const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
   const [selectedCameraId, setSelectedCameraId] = useState<string>('');
@@ -150,7 +150,10 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
           autoPlay
           playsInline
           muted
-          style={{ filter: activeFilterCss }}
+          style={{ 
+            filter: activeFilterCss,
+            transform: isMirrored ? 'scaleX(-1)' : 'none'
+          }}
           className="w-full h-full object-cover transition-all duration-300"
         />
 
@@ -179,27 +182,7 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
         )}
       </div>
 
-      {/* Camera Selection Controls */}
-      {!displayError && cameras.length > 1 && (
-        <div className="flex items-center justify-between px-4 py-3 rounded-2xl bg-slate-950/40 dark:bg-slate-950/40 bg-white/80 border border-slate-200 dark:border-slate-900 backdrop-blur-md">
-          <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-sm font-medium">
-            <Camera className="h-4 w-4 text-indigo-500 dark:text-indigo-400" />
-            <span>Select Input Device</span>
-          </div>
-          <select
-            value={selectedCameraId}
-            onChange={handleCameraChange}
-            disabled={displayLoading}
-            className="bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 rounded-xl px-3 py-1.5 text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-indigo-500 cursor-pointer disabled:opacity-50"
-          >
-            {cameras.map((camera) => (
-              <option key={camera.deviceId} value={camera.deviceId}>
-                {camera.label || `Camera ${camera.deviceId.substring(0, 5)}...`}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
+
     </div>
   );
 };

@@ -92,7 +92,8 @@ export class CameraService {
    */
   static async takePhoto(
     videoElement: HTMLVideoElement,
-    filterCss: string = 'none'
+    filterCss: string = 'none',
+    isMirrored: boolean = false
   ): Promise<Blob> {
     const canvas = document.createElement('canvas');
     canvas.width = videoElement.videoWidth || 1280;
@@ -106,6 +107,12 @@ export class CameraService {
     // Bake filter into canvas context if set
     if (filterCss && filterCss !== 'none') {
       ctx.filter = filterCss;
+    }
+
+    // Apply mirroring if requested
+    if (isMirrored) {
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
     }
 
     // Capture the current frame from video element
