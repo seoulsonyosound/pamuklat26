@@ -27,11 +27,12 @@ export class IndexedDBService {
   }
 
   /**
-   * Get all photostrips that have not been synchronized to PocketBase yet.
+   * Get all photostrips that have not been synchronized to the cloud yet.
    */
   static async getUnsyncedPhotostrips(): Promise<Photostrip[]> {
     if (!db) return [];
-    return await db.photostrips.where('synced').equals(0).toArray();
+    const all = await db.photostrips.toArray();
+    return all.filter((strip) => !strip.synced);
   }
 
   /**

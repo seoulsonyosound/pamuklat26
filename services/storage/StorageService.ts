@@ -1,5 +1,5 @@
 import { IndexedDBService } from './IndexedDBService';
-import { PocketBaseService } from '../pocketbase/PocketBaseService';
+import { SupabaseService } from '../supabase/SupabaseService';
 import { SyncService } from '../sync/SyncService';
 import { Photostrip, FrameTemplate, CameraSettings } from '@/types';
 import { generatePbId } from '@/utils/id';
@@ -103,8 +103,8 @@ export class StorageService {
     // 1. Delete from local database immediately
     await IndexedDBService.deletePhotostrip(id);
 
-    // 2. Best-effort delete from PocketBase (non-blocking)
-    PocketBaseService.deletePhotostrip(id).catch((err) => {
+    // 2. Best-effort delete from Supabase (non-blocking)
+    SupabaseService.deletePhotostrip(id).catch((err) => {
       console.warn(`Failed to delete remote strip ${id} during local deletion (might be offline):`, err);
     });
   }
@@ -122,6 +122,10 @@ export class StorageService {
       isActive: true,
     };
     await IndexedDBService.saveFrame(frame);
+    
+    // Upload frame to Supabase storage and DB
+    await SupabaseService.uploadFrame(frame);
+
     return frame;
   }
 
@@ -151,6 +155,11 @@ export class StorageService {
    */
   static async deleteFrame(id: string): Promise<void> {
     await IndexedDBService.deleteFrame(id);
+
+    // Best-effort delete from Supabase (non-blocking)
+    SupabaseService.deleteFrame(id).catch((err) => {
+      console.warn(`Failed to delete remote frame ${id} during local deletion:`, err);
+    });
   }
 
   /**

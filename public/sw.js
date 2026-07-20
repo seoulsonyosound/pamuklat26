@@ -44,12 +44,12 @@ self.addEventListener('activate', (event) => {
 
 // Fetching: intercept requests, serve from cache, fallback to network
 self.addEventListener('fetch', (event) => {
-  // Only handle GET requests, bypass Chrome extensions, API endpoints and PocketBase
+  // Only handle GET requests, bypass Chrome extensions, API endpoints, and Supabase
   if (
     event.request.method !== 'GET' ||
     event.request.url.includes('chrome-extension') ||
     event.request.url.includes('/api/') ||
-    event.request.url.includes(':8090')
+    event.request.url.includes('supabase.co')
   ) {
     return;
   }

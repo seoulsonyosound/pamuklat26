@@ -16,6 +16,9 @@ export default function GalleryPage() {
   const [selectedStrip, setSelectedStrip] = useState<Photostrip | null>(null);
   const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState<boolean>(false);
+  const [stripToDelete, setStripToDelete] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
   // Sync auth state reactively on mount
   useEffect(() => {
@@ -54,19 +57,27 @@ export default function GalleryPage() {
     URL.revokeObjectURL(url);
   };
 
-  const handleDelete = async (id: string, event?: React.MouseEvent) => {
+  const handleDelete = (id: string, event?: React.MouseEvent) => {
     if (event) event.stopPropagation(); // Avoid triggering lightbox close/open
-    
-    if (confirm('Are you sure you want to delete this photostrip permanently?')) {
-      try {
-        await StorageService.deletePhotostrip(id);
-        if (selectedStrip?.id === id) {
-          setSelectedStrip(null);
-        }
-      } catch (err) {
-        console.error('Failed to delete strip:', err);
-        alert('Failed to delete the selected photostrip.');
+    setStripToDelete(id);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!stripToDelete) return;
+    setIsDeleting(true);
+    try {
+      await StorageService.deletePhotostrip(stripToDelete);
+      if (selectedStrip?.id === stripToDelete) {
+        setSelectedStrip(null);
       }
+      setDeleteConfirmOpen(false);
+      setStripToDelete(null);
+    } catch (err) {
+      console.error('Failed to delete strip:', err);
+      alert('Failed to delete the selected photostrip.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -311,6 +322,64 @@ export default function GalleryPage() {
                     </button>
                   </div>
                 )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Custom Confirmation Modal */}
+      <AnimatePresence>
+        {deleteConfirmOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 250 }}
+              className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-2xl flex flex-col gap-4 text-center"
+            >
+              <div className="mx-auto rounded-full bg-rose-500/10 p-3.5 text-rose-500 border border-rose-500/10">
+                <Trash2 className="h-6 w-6" />
+              </div>
+              
+              <div>
+                <h2 className="text-lg font-black text-slate-900 dark:text-white">Delete Photostrip?</h2>
+                <p className="text-slate-600 dark:text-slate-400 text-sm mt-2 leading-relaxed">
+                  Are you sure you want to delete this photostrip permanently? This will remove it from this device and your Supabase cloud storage.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3 mt-2">
+                <button
+                  onClick={() => {
+                    setDeleteConfirmOpen(false);
+                    setStripToDelete(null);
+                  }}
+                  disabled={isDeleting}
+                  className="flex-1 py-3 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-350 font-bold text-xs hover:bg-slate-100 dark:hover:bg-slate-750 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  disabled={isDeleting}
+                  className="flex-1 py-3 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition-colors cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {isDeleting ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <span>Deleting...</span>
+                    </>
+                  ) : (
+                    <span>Yes, Delete</span>
+                  )}
+                </button>
               </div>
             </motion.div>
           </motion.div>

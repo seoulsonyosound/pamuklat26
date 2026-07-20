@@ -123,6 +123,31 @@ export class CanvasService {
         );
       }
       ctx.filter = 'none';
+
+      // Draw the capture date on the bottom-right of the custom frame
+      ctx.save();
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'bottom';
+      ctx.font = 'bold 20px "Outfit", "Inter", sans-serif';
+      
+      const dateText = new Date().toLocaleDateString('en-US', {
+        month: '2-digit',
+        day: '2-digit',
+        year: 'numeric'
+      }).replace(/\//g, '.');
+      
+      // 1. Draw a dark outline to ensure contrast on yellow/white frames
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 4;
+      ctx.lineJoin = 'round';
+      ctx.miterLimit = 2;
+      ctx.strokeText(dateText, 750, 2370);
+
+      // 2. Fill with white text
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillText(dateText, 750, 2370);
+      
+      ctx.restore();
     } else {
       // === DEFAULT FRAME PATH (no custom frame) ===
       ctx.fillStyle = '#FFFFFF';

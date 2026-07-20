@@ -1,5 +1,5 @@
 import { IndexedDBService } from '../storage/IndexedDBService';
-import { PocketBaseService } from '../pocketbase/PocketBaseService';
+import { SupabaseService } from '../supabase/SupabaseService';
 
 export interface SyncStatus {
   status: 'idle' | 'syncing' | 'error';
@@ -98,12 +98,12 @@ export class SyncService {
         if (!this.isOnline) break;
 
         try {
-          await PocketBaseService.uploadPhotostrip(strip);
+          await SupabaseService.uploadPhotostrip(strip);
           await IndexedDBService.markAsSynced(strip.id, new Date());
         } catch (uploadError) {
           console.error(`Failed to upload strip ${strip.id}:`, uploadError);
           // If we failed due to network, stop the loop and mark status as error
-          const stillOnline = await PocketBaseService.checkConnection();
+          const stillOnline = await SupabaseService.checkConnection();
           if (!stillOnline) {
             this.isOnline = false;
             break;
@@ -127,7 +127,7 @@ export class SyncService {
    */
   private static async checkConnectionAndSync(): Promise<void> {
     const wasOnline = this.isOnline;
-    this.isOnline = await PocketBaseService.checkConnection();
+    this.isOnline = await SupabaseService.checkConnection();
     await this.updatePendingCount();
 
     // Trigger sync if status changed to online or we were already online and have pending items
