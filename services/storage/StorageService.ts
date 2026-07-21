@@ -36,7 +36,7 @@ export class StorageService {
     const deviceId = this.getDeviceId();
     const timestamp = Date.now();
     const id = generatePbId();
-    const filename = `strip_${timestamp}_${deviceId}.png`;
+    const filename = `composite_${id}.png`;
 
     const photostrip: Photostrip = {
       id,
@@ -69,6 +69,7 @@ export class StorageService {
 
   /**
    * Update an existing photostrip record with newly rendered imageBlob, frameId, and filterId.
+   * Also re-uploads the updated image to Supabase so other devices see the latest version.
    */
   static async updatePhotostrip(
     id: string,
@@ -84,9 +85,19 @@ export class StorageService {
       imageBlob: newImageBlob,
       selectedFrameId: selectedFrameId !== undefined ? selectedFrameId : existing.selectedFrameId,
       selectedFilterId: selectedFilterId !== undefined ? selectedFilterId : existing.selectedFilterId,
+      // Mark as unsynced so the sync service re-uploads the updated blob
+      synced: false,
     };
 
     await IndexedDBService.savePhotostrip(updated);
+
+    // Best-effort re-upload to Supabase in the background so other devices see the updated frame/filter
+    SupabaseService.uploadPhotostrip(updated)
+      .then(() => IndexedDBService.markAsSynced(id, new Date()))
+      .catch((err) => {
+        console.warn(`Failed to re-upload updated photostrip ${id} to Supabase:`, err);
+        // Sync service will retry on next cycle
+      });
   }
 
   /**
