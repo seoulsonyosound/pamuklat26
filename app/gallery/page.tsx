@@ -1,24 +1,45 @@
 /* eslint-disable @next/next/no-img-element */
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Download, Trash2, X, Image as ImageIcon, Cloud, CloudOff, ZoomIn, Loader2 } from 'lucide-react';
+import { Download, Trash2, X, Image as ImageIcon, Cloud, CloudOff, ZoomIn, Loader2, RefreshCw } from 'lucide-react';
 import { db } from '@/lib/db';
+import { supabase } from '@/lib/supabase';
 import { StorageService } from '@/services/storage/StorageService';
 import { AdminService } from '@/services/AdminService';
 import { Photostrip } from '@/types';
 
+// A lightweight type for Supabase-fetched records (no blob, has image_url)
+interface RemoteStrip {
+  id: string;
+  filename: string;
+  image_url: string;
+  created_at: string;
+  synced: true;
+  isRemoteOnly: true;
+}
+
+// Union type used in the UI
+type DisplayStrip = Photostrip | RemoteStrip;
+
+function isRemoteOnly(strip: DisplayStrip): strip is RemoteStrip {
+  return (strip as RemoteStrip).isRemoteOnly === true;
+}
+
 export default function GalleryPage() {
   const router = useRouter();
-  const [selectedStrip, setSelectedStrip] = useState<Photostrip | null>(null);
+  const [selectedStrip, setSelectedStrip] = useState<DisplayStrip | null>(null);
   const [selectedUrl, setSelectedUrl] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState<boolean>(false);
   const [stripToDelete, setStripToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  const [remoteStrips, setRemoteStrips] = useState<RemoteStrip[]>([]);
+  const [isFetchingRemote, setIsFetchingRemote] = useState<boolean>(false);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   // Sync auth state reactively on mount
   useEffect(() => {
@@ -26,7 +47,7 @@ export default function GalleryPage() {
   }, []);
 
   // Reactively fetch all photostrips from Dexie IndexedDB (newest first)
-  const stripsList = useLiveQuery(
+  const localStrips = useLiveQuery(
     async () => {
       if (!db) return [];
       return await db.photostrips.orderBy('createdAt').reverse().toArray();
@@ -34,10 +55,66 @@ export default function GalleryPage() {
     []
   );
 
-  // Revoke object url on viewer close
+  // Fetch all photostrips from Supabase cloud so every device sees them
+  const fetchRemoteStrips = useCallback(async () => {
+    setIsFetchingRemote(true);
+    try {
+      const { data, error } = await supabase
+        .from('photostrips')
+        .select('id, filename, image_url, created_at')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.warn('Failed to fetch remote strips from Supabase:', error.message);
+        return;
+      }
+
+      if (data) {
+        const mapped: RemoteStrip[] = data.map((row) => ({
+          id: row.id,
+          filename: row.filename,
+          image_url: row.image_url,
+          created_at: row.created_at,
+          synced: true,
+          isRemoteOnly: true,
+        }));
+        setRemoteStrips(mapped);
+      }
+    } catch (err) {
+      console.warn('Error fetching remote strips:', err);
+    } finally {
+      setIsFetchingRemote(false);
+    }
+  }, []);
+
   useEffect(() => {
-    if (selectedStrip) {
-      const url = URL.createObjectURL(selectedStrip.imageBlob);
+    fetchRemoteStrips();
+  }, [fetchRemoteStrips]);
+
+  // Merge local and remote strips, preferring local (which has blob data)
+  const stripsList: DisplayStrip[] = React.useMemo(() => {
+    const localIds = new Set((localStrips ?? []).map((s) => s.id));
+    const remoteOnly = remoteStrips.filter((r) => !localIds.has(r.id));
+    const combined: DisplayStrip[] = [
+      ...(localStrips ?? []),
+      ...remoteOnly,
+    ];
+    combined.sort((a, b) => {
+      const aDate = isRemoteOnly(a) ? new Date((a as RemoteStrip).created_at).getTime() : (a as Photostrip).createdAt.getTime();
+      const bDate = isRemoteOnly(b) ? new Date((b as RemoteStrip).created_at).getTime() : (b as Photostrip).createdAt.getTime();
+      return bDate - aDate;
+    });
+    return combined;
+  }, [localStrips, remoteStrips]);
+
+  // Manage selected URL
+  useEffect(() => {
+    if (!selectedStrip) return;
+    if (isRemoteOnly(selectedStrip)) {
+      setSelectedUrl((selectedStrip as RemoteStrip).image_url);
+      return () => setSelectedUrl(null);
+    } else {
+      const url = URL.createObjectURL((selectedStrip as Photostrip).imageBlob);
       setSelectedUrl(url);
       return () => {
         URL.revokeObjectURL(url);
@@ -46,19 +123,55 @@ export default function GalleryPage() {
     }
   }, [selectedStrip]);
 
-  const handleDownload = (strip: Photostrip) => {
-    const url = URL.createObjectURL(strip.imageBlob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = strip.filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  const getStripDate = (strip: DisplayStrip): Date => {
+    if (isRemoteOnly(strip)) return new Date((strip as RemoteStrip).created_at);
+    return (strip as Photostrip).createdAt;
+  };
+
+  const getStripFilename = (strip: DisplayStrip): string => {
+    if (isRemoteOnly(strip)) return (strip as RemoteStrip).filename;
+    return (strip as Photostrip).filename;
+  };
+
+  const isSynced = (strip: DisplayStrip): boolean => {
+    if (isRemoteOnly(strip)) return true;
+    return (strip as Photostrip).synced;
+  };
+
+  const handleDownload = async (strip: DisplayStrip) => {
+    const filename = getStripFilename(strip);
+    if (isRemoteOnly(strip)) {
+      setDownloadingId(strip.id);
+      try {
+        const response = await fetch((strip as RemoteStrip).image_url);
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch {
+        window.open((strip as RemoteStrip).image_url, '_blank');
+      } finally {
+        setDownloadingId(null);
+      }
+    } else {
+      const url = URL.createObjectURL((strip as Photostrip).imageBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
   };
 
   const handleDelete = (id: string, event?: React.MouseEvent) => {
-    if (event) event.stopPropagation(); // Avoid triggering lightbox close/open
+    if (event) event.stopPropagation();
     setStripToDelete(id);
     setDeleteConfirmOpen(true);
   };
@@ -73,6 +186,7 @@ export default function GalleryPage() {
       }
       setDeleteConfirmOpen(false);
       setStripToDelete(null);
+      fetchRemoteStrips();
     } catch (err) {
       console.error('Failed to delete strip:', err);
       alert('Failed to delete the selected photostrip.');
@@ -81,7 +195,7 @@ export default function GalleryPage() {
     }
   };
 
-  if (!stripsList) {
+  if (!localStrips) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center py-12">
         <Loader2 className="h-10 w-10 text-indigo-500 animate-spin mb-4" />
@@ -103,15 +217,28 @@ export default function GalleryPage() {
             Browse through all vertical photostrips captured at this event station.
           </p>
         </div>
-        
-        {/* Count Badge */}
-        <div className="self-start px-4 py-2 rounded-xl bg-white/80 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-900 text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300">
-          Total Captured: <span className="text-indigo-600 dark:text-indigo-400 font-black">{stripsList.length}</span>
+
+        <div className="flex items-center gap-3 self-start">
+          {/* Refresh button */}
+          <button
+            onClick={fetchRemoteStrips}
+            disabled={isFetchingRemote}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/80 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-900 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors disabled:opacity-50 cursor-pointer"
+            title="Refresh gallery from cloud"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isFetchingRemote ? 'animate-spin' : ''}`} />
+            {isFetchingRemote ? 'Loading...' : 'Refresh'}
+          </button>
+
+          {/* Count Badge */}
+          <div className="px-4 py-2 rounded-xl bg-white/80 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-900 text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300">
+            Total Captured: <span className="text-indigo-600 dark:text-indigo-400 font-black">{stripsList.length}</span>
+          </div>
         </div>
       </div>
 
       {/* Empty State */}
-      {stripsList.length === 0 && (
+      {stripsList.length === 0 && !isFetchingRemote && (
         <div className="flex-grow flex flex-col items-center justify-center py-20 text-center glass-card rounded-3xl p-8 max-w-lg mx-auto border border-dashed border-slate-300 dark:border-slate-800">
           <div className="rounded-full bg-slate-100 dark:bg-slate-900 p-5 text-slate-500 mb-4 border border-slate-200 dark:border-slate-800">
             <ImageIcon className="h-10 w-10" />
@@ -132,12 +259,25 @@ export default function GalleryPage() {
         </div>
       )}
 
+      {/* Loading skeleton while fetching remote and no local strips */}
+      {isFetchingRemote && stripsList.length === 0 && (
+        <div className="flex-grow flex flex-col items-center justify-center py-20 text-center">
+          <Loader2 className="h-10 w-10 text-indigo-500 animate-spin mb-4" />
+          <p className="text-slate-400 text-sm font-semibold">Loading gallery from cloud...</p>
+        </div>
+      )}
+
       {/* Grid List */}
       {stripsList.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
           {stripsList.map((strip) => {
-            const tempUrl = URL.createObjectURL(strip.imageBlob);
-            
+            const imgSrc = isRemoteOnly(strip)
+              ? (strip as RemoteStrip).image_url
+              : URL.createObjectURL((strip as Photostrip).imageBlob);
+            const date = getStripDate(strip);
+            const synced = isSynced(strip);
+            const isDownloading = downloadingId === strip.id;
+
             return (
               <div
                 key={strip.id}
@@ -147,12 +287,12 @@ export default function GalleryPage() {
                 {/* Image Container with fixed vertical aspect ratio */}
                 <div className="relative w-full aspect-[1/3] bg-slate-100 dark:bg-slate-950 overflow-hidden">
                   <img
-                    src={tempUrl}
-                    alt={strip.filename}
+                    src={imgSrc}
+                    alt={getStripFilename(strip)}
                     className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
-                    onLoad={() => URL.revokeObjectURL(tempUrl)} // Free object url once rendered
+                    onLoad={() => { if (!isRemoteOnly(strip)) URL.revokeObjectURL(imgSrc); }}
                   />
-                  
+
                   {/* Hover Overlay controls */}
                   <div className="absolute inset-0 bg-slate-950/70 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col items-center justify-center gap-3 z-10">
                     <div className="rounded-full bg-indigo-600 p-3 text-white shadow-lg">
@@ -163,7 +303,7 @@ export default function GalleryPage() {
 
                   {/* Sync Status Badge */}
                   <div className="absolute top-2.5 right-2.5 z-20">
-                    {strip.synced ? (
+                    {synced ? (
                       <div
                         className="rounded-full bg-emerald-950/80 border border-emerald-500/20 text-emerald-400 p-1.5 backdrop-blur-md shadow-md"
                         title="Synced to cloud"
@@ -185,26 +325,28 @@ export default function GalleryPage() {
                 <div className="p-3.5 flex items-center justify-between bg-slate-100/80 dark:bg-slate-950/40 border-t border-slate-200 dark:border-slate-900 gap-2">
                   <div className="min-w-0">
                     <p className="text-[10px] text-slate-700 dark:text-slate-400 font-bold uppercase truncate">
-                      {new Date(strip.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </p>
                     <p className="text-[9px] text-slate-500 font-semibold truncate mt-0.5">
-                      {new Date(strip.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                      {date.toLocaleDateString([], { month: 'short', day: 'numeric' })}
                     </p>
                   </div>
-                  
-                  {/* Action buttons visible only to Admin */}
-                  {isAdmin && (
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDownload(strip);
-                        }}
-                        className="rounded-lg bg-slate-200 dark:bg-slate-900 hover:bg-slate-300 dark:hover:bg-slate-800 p-1.5 text-slate-700 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors border border-slate-300 dark:border-slate-850"
-                        title="Download image"
-                      >
+
+                  {/* Download: visible to all. Delete: admin only */}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDownload(strip); }}
+                      disabled={isDownloading}
+                      className="rounded-lg bg-slate-200 dark:bg-slate-900 hover:bg-indigo-500/10 p-1.5 text-slate-700 dark:text-slate-400 hover:text-indigo-500 transition-colors border border-slate-300 dark:border-slate-850 disabled:opacity-50"
+                      title="Download image"
+                    >
+                      {isDownloading ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
                         <Download className="h-3.5 w-3.5" />
-                      </button>
+                      )}
+                    </button>
+                    {isAdmin && (
                       <button
                         onClick={(e) => handleDelete(strip.id, e)}
                         className="rounded-lg bg-slate-200 dark:bg-slate-900 hover:bg-rose-500/10 p-1.5 text-slate-700 dark:text-slate-400 hover:text-rose-500 transition-colors border border-slate-300 dark:border-slate-850"
@@ -212,8 +354,8 @@ export default function GalleryPage() {
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
             );
@@ -253,7 +395,7 @@ export default function GalleryPage() {
                 <div className="w-[180px] sm:w-[220px] aspect-[1/3] rounded-2xl overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-800/80 bg-white">
                   <img
                     src={selectedUrl}
-                    alt={selectedStrip.filename}
+                    alt={getStripFilename(selectedStrip)}
                     className="w-full h-full object-cover"
                   />
                 </div>
@@ -267,15 +409,15 @@ export default function GalleryPage() {
                     <span className="text-[10px] font-bold tracking-wider text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2.5 py-1 rounded-full uppercase">
                       Event Photostrip
                     </span>
-                    <h3 className="text-lg font-bold text-slate-900 dark:text-white truncate mt-3">{selectedStrip.filename}</h3>
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white truncate mt-3">{getStripFilename(selectedStrip)}</h3>
                     <p className="text-slate-500 dark:text-slate-400 text-xs mt-1">
-                      Captured: {new Date(selectedStrip.createdAt).toLocaleString()}
+                      Captured: {getStripDate(selectedStrip).toLocaleString()}
                     </p>
                   </div>
 
                   {/* Sync status section */}
                   <div className="p-3.5 rounded-2xl bg-slate-100/40 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-950 flex items-center gap-3">
-                    {selectedStrip.synced ? (
+                    {isSynced(selectedStrip) ? (
                       <>
                         <div className="rounded-full bg-emerald-500/10 p-2 text-emerald-455 border border-emerald-500/10">
                           <Cloud className="h-4.5 w-4.5" />
@@ -299,19 +441,24 @@ export default function GalleryPage() {
                   </div>
                 </div>
 
-                {/* Actions visible only to Admin */}
-                {isAdmin && (
-                  <div className="flex flex-col gap-2.5 mt-8">
-                    {/* Download button: slide effect */}
-                    <button
-                      onClick={() => handleDownload(selectedStrip)}
-                      className="group/btn relative overflow-hidden flex items-center justify-center gap-2 px-4 py-3.5 rounded-none bg-slate-900 dark:bg-white/5 border-0 text-white dark:text-white hover:text-[#060814] font-bold transition-all duration-300 ease-out hover:-translate-y-0.5 active:translate-y-0 cursor-pointer z-10"
-                    >
-                      <div className="absolute inset-0 bg-white -translate-x-full group-hover/btn:translate-x-0 transition-transform duration-[350ms] cubic-bezier(0.16, 1, 0.3, 1) -z-10" />
+                {/* Download visible to all; Delete only for Admin */}
+                <div className="flex flex-col gap-2.5 mt-8">
+                  {/* Download button: visible to everyone */}
+                  <button
+                    onClick={() => handleDownload(selectedStrip)}
+                    disabled={downloadingId === selectedStrip.id}
+                    className="group/btn relative overflow-hidden flex items-center justify-center gap-2 px-4 py-3.5 rounded-none bg-slate-900 dark:bg-white/5 border-0 text-white dark:text-white hover:text-[#060814] font-bold transition-all duration-300 ease-out hover:-translate-y-0.5 active:translate-y-0 cursor-pointer z-10 disabled:opacity-50"
+                  >
+                    <div className="absolute inset-0 bg-white -translate-x-full group-hover/btn:translate-x-0 transition-transform duration-[350ms] cubic-bezier(0.16, 1, 0.3, 1) -z-10" />
+                    {downloadingId === selectedStrip.id ? (
+                      <Loader2 className="h-4.5 w-4.5 animate-spin" />
+                    ) : (
                       <Download className="h-4.5 w-4.5 text-[#ff0055] group-hover/btn:text-[#060814]" />
-                      <span>Download PNG</span>
-                    </button>
-                    {/* Delete button: slide effect */}
+                    )}
+                    <span>{downloadingId === selectedStrip.id ? 'Downloading...' : 'Download PNG'}</span>
+                  </button>
+                  {/* Delete button: admin only */}
+                  {isAdmin && (
                     <button
                       onClick={() => handleDelete(selectedStrip.id)}
                       className="group/btn relative overflow-hidden flex items-center justify-center gap-2 px-4 py-3.5 rounded-none bg-rose-50 dark:bg-white/5 border border-rose-200 dark:border-transparent text-rose-500 dark:text-rose-400 font-semibold transition-all duration-300 ease-out hover:text-[#060814] hover:-translate-y-0.5 active:translate-y-0 cursor-pointer z-10"
@@ -320,8 +467,8 @@ export default function GalleryPage() {
                       <Trash2 className="h-4.5 w-4.5 text-rose-500 group-hover/btn:text-[#060814]" />
                       <span>Delete Strip</span>
                     </button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </motion.div>
           </motion.div>
