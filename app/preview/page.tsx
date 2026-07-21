@@ -4,6 +4,8 @@
 import React, { useEffect, useState, useRef, Suspense, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Download, Image as ImageIcon, Trash2, ArrowRight, Loader2, LayoutTemplate, AlertTriangle } from 'lucide-react';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { db } from '@/lib/db';
 import { StorageService } from '@/services/storage/StorageService';
 import { CanvasService } from '@/services/CanvasService';
 import { FilterSelectorBar } from '@/components/FilterSelectorBar';
@@ -15,7 +17,14 @@ const PreviewContent: React.FC = () => {
   const searchParams = useSearchParams();
   const id = searchParams.get('id');
 
-  const [photostrip, setPhotostrip] = useState<Photostrip | null>(null);
+  const photostrip = useLiveQuery(
+    async () => {
+      if (!db || !id) return null;
+      return (await db.photostrips.get(id)) || null;
+    },
+    [id]
+  );
+
   const [frames, setFrames] = useState<FrameTemplate[]>([]);
   const [frameUrls, setFrameUrls] = useState<Record<string, string>>({});
   
@@ -23,6 +32,7 @@ const PreviewContent: React.FC = () => {
   const [selectedFrameId, setSelectedFrameId] = useState<string | null>(null);
 
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const hasInitializedRef = useRef<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRecomposing, setIsRecomposing] = useState<boolean>(false);
   
@@ -32,61 +42,65 @@ const PreviewContent: React.FC = () => {
   const activeUrlRef = useRef<string | null>(null);
   const frameUrlsRef = useRef<Record<string, string>>({});
 
-  // Load photostrip and stored frame repository
+  // Load background frame templates once on mount
   useEffect(() => {
-    if (!id) {
-      router.replace('/capture');
-      return;
-    }
-
-    async function loadData() {
+    async function loadFrames() {
       setIsLoading(true);
       try {
-        const [strips, storedFrames] = await Promise.all([
-          StorageService.getPhotostrips(),
-          StorageService.getAllFrames(),
-        ]);
+        const storedFrames = await StorageService.getAllFrames();
+        setFrames(storedFrames);
 
-        const found = strips.find((s) => s.id === id);
-        
-        if (found) {
-          setPhotostrip(found);
-          setFrames(storedFrames);
-
-          const urls: Record<string, string> = {};
-          storedFrames.forEach((frame) => {
-            urls[frame.id] = URL.createObjectURL(frame.imageBlob);
-          });
-          frameUrlsRef.current = urls;
-          setFrameUrls(urls);
-
-          const initialFilter = getFilterById(found.selectedFilterId || 'normal');
-          setSelectedFilter(initialFilter);
-          setSelectedFrameId(found.selectedFrameId || null);
-
-          const url = URL.createObjectURL(found.imageBlob);
-          activeUrlRef.current = url;
-          setImageUrl(url);
-        } else {
-          router.replace('/capture');
-        }
+        const urls: Record<string, string> = {};
+        storedFrames.forEach((frame) => {
+          urls[frame.id] = URL.createObjectURL(frame.imageBlob);
+        });
+        frameUrlsRef.current = urls;
+        setFrameUrls(urls);
       } catch (err) {
-        console.error('Failed to load captured strip data:', err);
-        router.replace('/capture');
+        console.error('Failed to load frame templates:', err);
       } finally {
         setIsLoading(false);
       }
     }
+    loadFrames();
 
-    loadData();
+    return () => {
+      Object.values(frameUrlsRef.current).forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, []);
 
+  // Reactively track changes to the photostrip record
+  useEffect(() => {
+    if (photostrip) {
+      const url = URL.createObjectURL(photostrip.imageBlob);
+      const prevUrl = activeUrlRef.current;
+      activeUrlRef.current = url;
+      setImageUrl(url);
+      if (prevUrl) {
+        URL.revokeObjectURL(prevUrl);
+      }
+
+      if (!hasInitializedRef.current) {
+        const initialFilter = getFilterById(photostrip.selectedFilterId || 'normal');
+        setSelectedFilter(initialFilter);
+        setSelectedFrameId(photostrip.selectedFrameId || null);
+        hasInitializedRef.current = true;
+      }
+    } else if (photostrip === null) {
+      // Redirect if not found
+      router.replace('/capture');
+    }
+  }, [photostrip, router]);
+
+  // Clean up main preview URL on unmount
+  useEffect(() => {
     return () => {
       if (activeUrlRef.current) {
         URL.revokeObjectURL(activeUrlRef.current);
       }
-      Object.values(frameUrlsRef.current).forEach((url) => URL.revokeObjectURL(url));
     };
-  }, [id, router]);
+  }, []);
+
 
   const recompositeStrip = useCallback(
     async (frameId: string | null, filter: PhotoboothFilter) => {
@@ -319,6 +333,7 @@ const PreviewContent: React.FC = () => {
             </button>
           </div>
         </div>
+
 
         {/* Device ID Reference Banner */}
         <div className="rounded-2xl bg-white dark:bg-slate-950/40 border border-slate-200 dark:border-slate-900/50 p-4.5 backdrop-blur-md transition-colors duration-300">
