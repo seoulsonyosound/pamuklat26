@@ -31,7 +31,7 @@ export class SupabaseService {
     const { error: uploadError } = await supabase.storage
       .from('gallery')
       .upload(photostrip.filename, file, {
-        cacheControl: '3600',
+        cacheControl: '0',
         upsert: true,
       });
 
@@ -114,7 +114,7 @@ export class SupabaseService {
     const { error: uploadError } = await supabase.storage
       .from('frames')
       .upload(frame.filename, file, {
-        cacheControl: '3600',
+        cacheControl: '0',
         upsert: true,
       });
 

@@ -44,6 +44,8 @@ export default function GalleryPage() {
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [reuploadingId, setReuploadingId] = useState<string | null>(null);
   const [isReuploadingAll, setIsReuploadingAll] = useState<boolean>(false);
+  const [isDownloadingAll, setIsDownloadingAll] = useState<boolean>(false);
+  const [downloadAllProgress, setDownloadAllProgress] = useState<string>('');
 
   // Sync auth state reactively on mount
   useEffect(() => {
@@ -232,6 +234,63 @@ export default function GalleryPage() {
     }
   };
 
+  // Compile and download all photostrips as a single ZIP archive
+  const handleDownloadAll = async () => {
+    if (stripsList.length === 0) return;
+    setIsDownloadingAll(true);
+    setDownloadAllProgress('Initializing zip...');
+    try {
+      const JSZipModule = await import('@/lib/jszip');
+      const JSZip = JSZipModule.default || JSZipModule;
+      const zip = new JSZip();
+
+      const total = stripsList.length;
+      for (let i = 0; i < total; i++) {
+        const strip = stripsList[i];
+        const indexStr = `${total - i}`.padStart(3, '0');
+        const date = isRemoteOnly(strip) ? new Date(strip.created_at) : strip.createdAt;
+        const formattedDate = date.toISOString().replace(/[:.]/g, '-');
+        const entryFilename = `photostrip_${indexStr}_${formattedDate}.png`;
+
+        setDownloadAllProgress(`Loading ${i + 1}/${total}...`);
+
+        let blob: Blob;
+        if (!isRemoteOnly(strip)) {
+          blob = strip.imageBlob;
+        } else {
+          try {
+            const response = await fetch(strip.image_url);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            blob = await response.blob();
+          } catch (fetchErr) {
+            console.error(`Failed to fetch remote image for zip: ${strip.filename}`, fetchErr);
+            continue;
+          }
+        }
+        zip.file(entryFilename, blob);
+      }
+
+      setDownloadAllProgress('Packing ZIP...');
+      const content = await zip.generateAsync({ type: 'blob' });
+
+      setDownloadAllProgress('Downloading...');
+      const url = URL.createObjectURL(content);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `photobooth_all_memories_${Date.now()}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Failed to download all memories:', err);
+      alert('Failed to generate ZIP archive of all photos.');
+    } finally {
+      setIsDownloadingAll(false);
+      setDownloadAllProgress('');
+    }
+  };
+
 
   if (!localStrips) {
     return (
@@ -278,6 +337,19 @@ export default function GalleryPage() {
             >
               <UploadCloud className={`h-3.5 w-3.5 ${isReuploadingAll ? 'animate-pulse' : ''}`} />
               {isReuploadingAll ? 'Uploading...' : 'Re-upload All to Cloud'}
+            </button>
+          )}
+
+          {/* Admin: Download All Photos button */}
+          {isAdmin && stripsList.length > 0 && (
+            <button
+              onClick={handleDownloadAll}
+              disabled={isDownloadingAll}
+              className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer"
+              title="Download all memories as a ZIP archive file"
+            >
+              <Download className={`h-3.5 w-3.5 ${isDownloadingAll ? 'animate-bounce' : ''}`} />
+              {isDownloadingAll ? (downloadAllProgress || 'Downloading...') : 'Download All'}
             </button>
           )}
 
