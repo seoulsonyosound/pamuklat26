@@ -393,12 +393,22 @@ const PreviewContent: React.FC = () => {
               <p className="text-slate-800 dark:text-slate-200 text-sm font-bold mt-1.5 leading-none select-all">{photostrip.deviceId}</p>
             </div>
             <button
-              onClick={() => router.push('/capture')}
-              className="group/btn relative overflow-hidden flex items-center gap-1.5 px-4.5 py-3.5 rounded-xl bg-slate-900/5 dark:bg-white/5 border-0 text-indigo-600 dark:text-indigo-400 font-bold transition-all duration-300 ease-out hover:text-[#060814] hover:-translate-y-0.5 active:translate-y-0 cursor-pointer z-10"
+              onClick={async () => {
+                if (!photostrip) { router.push('/capture'); return; }
+                setIsUploading(true);
+                try { await uploadCurrentState(photostrip); } finally { setIsUploading(false); }
+                router.push('/capture');
+              }}
+              disabled={isUploading}
+              className="group/btn relative overflow-hidden flex items-center gap-1.5 px-4.5 py-3.5 rounded-xl bg-slate-900/5 dark:bg-white/5 border-0 text-indigo-600 dark:text-indigo-400 font-bold transition-all duration-300 ease-out hover:text-[#060814] hover:-translate-y-0.5 active:translate-y-0 cursor-pointer z-10 disabled:opacity-50"
             >
               <div className="absolute inset-0 bg-white -translate-x-full group-hover/btn:translate-x-0 transition-transform duration-[350ms] cubic-bezier(0.16, 1, 0.3, 1) -z-10" />
               <span>Next Strip</span>
-              <ArrowRight className="h-3.5 w-3.5 text-indigo-500 dark:text-indigo-400 group-hover/btn:text-[#060814] shrink-0" />
+              {isUploading ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+              ) : (
+                <ArrowRight className="h-3.5 w-3.5 text-indigo-500 dark:text-indigo-400 group-hover/btn:text-[#060814] shrink-0" />
+              )}
             </button>
           </div>
         </div>
