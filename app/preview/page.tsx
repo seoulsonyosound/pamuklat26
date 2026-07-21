@@ -7,6 +7,8 @@ import { Download, Image as ImageIcon, Trash2, ArrowRight, Loader2, LayoutTempla
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/lib/db';
 import { StorageService } from '@/services/storage/StorageService';
+import { SupabaseService } from '@/services/supabase/SupabaseService';
+import { IndexedDBService } from '@/services/storage/IndexedDBService';
 import { CanvasService } from '@/services/CanvasService';
 import { FilterSelectorBar } from '@/components/FilterSelectorBar';
 import { PHOTOBOOTH_FILTERS, PhotoboothFilter, getFilterById } from '@/utils/filters';
@@ -38,6 +40,7 @@ const PreviewContent: React.FC = () => {
   
   const [isConfirmOpen, setIsConfirmOpen] = useState<boolean>(false);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  const [isUploading, setIsUploading] = useState<boolean>(false);
   
   const activeUrlRef = useRef<string | null>(null);
   const frameUrlsRef = useRef<Record<string, string>>({});
@@ -145,14 +148,47 @@ const PreviewContent: React.FC = () => {
     recompositeStrip(frameId, selectedFilter);
   };
 
-  const handleDownload = () => {
+  /**
+   * Upload the current local blob (with applied frame+filter) to Supabase.
+   * Called before Download and Gallery so the cloud version is always up to date.
+   */
+  const uploadCurrentState = useCallback(async (strip: Photostrip) => {
+    try {
+      await SupabaseService.uploadPhotostrip(strip);
+      await IndexedDBService.markAsSynced(strip.id, new Date());
+    } catch (err) {
+      console.warn('Failed to upload photostrip to cloud (will retry later):', err);
+      // Non-blocking: user can still download/navigate even if upload fails
+    }
+  }, []);
+
+  const handleDownload = async () => {
     if (!imageUrl || !photostrip) return;
+    setIsUploading(true);
+    try {
+      // Upload the finalised version (with frame+filter) to Supabase first
+      await uploadCurrentState(photostrip);
+    } finally {
+      setIsUploading(false);
+    }
+    // Then trigger browser download
     const a = document.createElement('a');
     a.href = imageUrl;
     a.download = photostrip.filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+  };
+
+  const handleGoToGallery = async () => {
+    if (!photostrip) { router.push('/gallery'); return; }
+    setIsUploading(true);
+    try {
+      await uploadCurrentState(photostrip);
+    } finally {
+      setIsUploading(false);
+    }
+    router.push('/gallery');
   };
 
   const executeRetake = async () => {
@@ -299,36 +335,50 @@ const PreviewContent: React.FC = () => {
 
         {/* Action Buttons Box */}
         <div className="flex flex-col sm:flex-row md:flex-col gap-3">
-          {/* Download Button */}
+          {/* Download Button — uploads to Supabase first, then triggers browser download */}
           <button
             onClick={handleDownload}
-            disabled={isRecomposing}
+            disabled={isRecomposing || isUploading}
             className="group/btn relative overflow-hidden bg-slate-900 dark:bg-white/5 border-0 text-white hover:text-[#060814] transition-all duration-300 ease-out hover:-translate-y-0.5 active:translate-y-0 cursor-pointer z-10 disabled:opacity-50 w-full h-14 flex items-center justify-center font-bold text-base rounded-xl"
           >
             <div className="absolute inset-0 bg-white -translate-x-full group-hover/btn:translate-x-0 transition-transform duration-[350ms] cubic-bezier(0.16, 1, 0.3, 1) -z-10" />
-            <Download className="h-5 w-5 text-[#ff0055] group-hover/btn:text-[#060814] shrink-0 mr-3" />
-            <span>DOWNLOAD PHOTOSTRIP</span>
+            {isUploading ? (
+              <>
+                <Loader2 className="h-5 w-5 shrink-0 mr-3 animate-spin" />
+                <span>SAVING TO CLOUD...</span>
+              </>
+            ) : (
+              <>
+                <Download className="h-5 w-5 text-[#ff0055] group-hover/btn:text-[#060814] shrink-0 mr-3" />
+                <span>DOWNLOAD</span>
+              </>
+            )}
           </button>
 
           <div className="grid grid-cols-2 gap-3 w-full">
-            {/* Retake Button */}
+            {/* Retake Button — no upload, just delete and restart */}
             <button
               onClick={() => setIsConfirmOpen(true)}
-              disabled={isRecomposing}
+              disabled={isRecomposing || isUploading}
               className="group/btn relative overflow-hidden flex items-center justify-center gap-2 px-4 py-4 rounded-xl bg-slate-900/5 dark:bg-white/5 border-0 text-rose-500 dark:text-rose-400 font-bold transition-all duration-300 ease-out hover:text-[#060814] hover:-translate-y-0.5 active:translate-y-0 cursor-pointer z-10 disabled:opacity-50"
             >
               <div className="absolute inset-0 bg-white -translate-x-full group-hover/btn:translate-x-0 transition-transform duration-[350ms] cubic-bezier(0.16, 1, 0.3, 1) -z-10" />
               <Trash2 className="h-4.5 w-4.5 text-rose-500 group-hover/btn:text-[#060814] shrink-0" />
               <span>Retake</span>
             </button>
-            
-            {/* Gallery Button */}
+
+            {/* Gallery Button — uploads to Supabase first, then navigates */}
             <button
-              onClick={() => router.push('/gallery')}
-              className="group/btn relative overflow-hidden flex items-center justify-center gap-2 px-4 py-4 rounded-xl bg-slate-900/5 dark:bg-white/5 border-0 text-indigo-600 dark:text-indigo-405 font-bold transition-all duration-300 ease-out hover:text-[#060814] hover:-translate-y-0.5 active:translate-y-0 cursor-pointer z-10"
+              onClick={handleGoToGallery}
+              disabled={isUploading}
+              className="group/btn relative overflow-hidden flex items-center justify-center gap-2 px-4 py-4 rounded-xl bg-slate-900/5 dark:bg-white/5 border-0 text-indigo-600 dark:text-indigo-405 font-bold transition-all duration-300 ease-out hover:text-[#060814] hover:-translate-y-0.5 active:translate-y-0 cursor-pointer z-10 disabled:opacity-50"
             >
               <div className="absolute inset-0 bg-white -translate-x-full group-hover/btn:translate-x-0 transition-transform duration-[350ms] cubic-bezier(0.16, 1, 0.3, 1) -z-10" />
-              <ImageIcon className="h-4.5 w-4.5 text-indigo-500 dark:text-indigo-405 group-hover/btn:text-[#060814] shrink-0" />
+              {isUploading ? (
+                <Loader2 className="h-4.5 w-4.5 shrink-0 animate-spin" />
+              ) : (
+                <ImageIcon className="h-4.5 w-4.5 text-indigo-500 dark:text-indigo-405 group-hover/btn:text-[#060814] shrink-0" />
+              )}
               <span>Gallery</span>
             </button>
           </div>

@@ -1,6 +1,5 @@
 import { IndexedDBService } from './IndexedDBService';
 import { SupabaseService } from '../supabase/SupabaseService';
-import { SyncService } from '../sync/SyncService';
 import { Photostrip, FrameTemplate, CameraSettings } from '@/types';
 import { generatePbId } from '@/utils/id';
 
@@ -53,9 +52,9 @@ export class StorageService {
 
     await IndexedDBService.savePhotostrip(photostrip);
 
-    SyncService.triggerSync().catch((err) => {
-      console.error('Trigger sync error:', err);
-    });
+    // NOTE: Upload to Supabase is intentionally deferred.
+    // It happens only when the user exits the preview page (Download / Gallery / Retake),
+    // ensuring the uploaded version always has the user-selected filter & frame applied.
 
     return photostrip;
   }
@@ -85,19 +84,11 @@ export class StorageService {
       imageBlob: newImageBlob,
       selectedFrameId: selectedFrameId !== undefined ? selectedFrameId : existing.selectedFrameId,
       selectedFilterId: selectedFilterId !== undefined ? selectedFilterId : existing.selectedFilterId,
-      // Mark as unsynced so the sync service re-uploads the updated blob
-      synced: false,
+      synced: false, // marks as pending upload
     };
 
+    // Save updated blob locally only — Supabase upload happens on user exit (Download/Gallery/Retake)
     await IndexedDBService.savePhotostrip(updated);
-
-    // Best-effort re-upload to Supabase in the background so other devices see the updated frame/filter
-    SupabaseService.uploadPhotostrip(updated)
-      .then(() => IndexedDBService.markAsSynced(id, new Date()))
-      .catch((err) => {
-        console.warn(`Failed to re-upload updated photostrip ${id} to Supabase:`, err);
-        // Sync service will retry on next cycle
-      });
   }
 
   /**
