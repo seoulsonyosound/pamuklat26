@@ -1,12 +1,14 @@
 /* eslint-disable @next/next/no-img-element */
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Upload, Trash2, LayoutTemplate, CheckCircle, AlertTriangle, Loader2 } from 'lucide-react';
+import { Upload, Trash2, LayoutTemplate, CheckCircle, AlertTriangle, Loader2, RefreshCw } from 'lucide-react';
 import { StorageService } from '@/services/storage/StorageService';
 import { AdminService } from '@/services/AdminService';
 import { FrameTemplate } from '@/types';
+import { supabase } from '@/lib/supabase';
+import { generatePbId } from '@/utils/id';
 
 const MAX_FRAME_CAPACITY = 10;
 
@@ -22,7 +24,61 @@ export default function AdminFramePage() {
 
   const activeUrlsRef = useRef<Record<string, string>>({});
 
-  const loadAllFrames = async () => {
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+
+  const syncFramesFromCloud = useCallback(async () => {
+    setIsSyncing(true);
+    try {
+      // 1. Fetch all frame records from Supabase
+      const { data, error } = await supabase
+        .from('frames')
+        .select('id, filename, image_url, created_at, is_active')
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.warn('Failed to fetch frames from Supabase:', error.message);
+        return;
+      }
+
+      if (!data || data.length === 0) return;
+
+      // 2. Get frames already stored locally
+      const localFrames = await StorageService.getAllFrames();
+      const localIds = new Set(localFrames.map((f) => f.id));
+
+      // 3. Download and save any frames not yet in IndexedDB
+      for (const remote of data) {
+        if (localIds.has(remote.id)) continue; // already local, skip
+        if (!remote.image_url) continue;
+
+        try {
+          const response = await fetch(remote.image_url);
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const blob = await response.blob();
+
+          // Manually construct FrameTemplate and save it to IndexedDB
+          const frame: FrameTemplate = {
+            id: remote.id || generatePbId(),
+            filename: remote.filename,
+            imageBlob: blob,
+            createdAt: remote.created_at ? new Date(remote.created_at) : new Date(),
+            isActive: remote.is_active ?? true,
+          };
+          // Save directly to IndexedDB using db.put (bypasses the "deactivate all" side effect in IndexedDBService.saveFrame)
+          const { db } = await import('@/lib/db');
+          if (db) await db.frames.put(frame);
+        } catch (downloadErr) {
+          console.warn(`Failed to download frame ${remote.filename}:`, downloadErr);
+        }
+      }
+    } catch (err) {
+      console.warn('Error syncing frames from cloud:', err);
+    } finally {
+      setIsSyncing(false);
+    }
+  }, []);
+
+  const loadAllFrames = useCallback(async () => {
     setIsLoading(true);
     try {
       const storedFrames = await StorageService.getAllFrames();
@@ -49,7 +105,7 @@ export default function AdminFramePage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (!AdminService.isAuthenticated()) {
@@ -57,13 +113,18 @@ export default function AdminFramePage() {
       return;
     }
 
-    loadAllFrames();
+    // First sync from cloud, then load locally
+    const init = async () => {
+      await syncFramesFromCloud();
+      await loadAllFrames();
+    };
+    init();
 
     return () => {
       Object.values(activeUrlsRef.current).forEach((url) => URL.revokeObjectURL(url));
       activeUrlsRef.current = {};
     };
-  }, [router]);
+  }, [router, syncFramesFromCloud, loadAllFrames]);
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -111,6 +172,13 @@ export default function AdminFramePage() {
     }
   };
 
+  const handleRefreshFromCloud = async () => {
+    setNotification(null);
+    await syncFramesFromCloud();
+    await loadAllFrames();
+    showNotification('success', 'Synced frames from cloud successfully!');
+  };
+
   const showNotification = (type: 'success' | 'error', message: string) => {
     setNotification({ type, message });
     setTimeout(() => {
@@ -134,6 +202,16 @@ export default function AdminFramePage() {
             Admin Repository for managing transparent PNG border overlays. Maximum collection capacity: {MAX_FRAME_CAPACITY} frames.
           </p>
         </div>
+        {/* Sync from cloud button */}
+        <button
+          onClick={handleRefreshFromCloud}
+          disabled={isSyncing || isLoading}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/80 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-900 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors disabled:opacity-50 cursor-pointer self-start"
+          title="Pull frames from Supabase cloud"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+          {isSyncing ? 'Syncing from cloud...' : 'Sync from Cloud'}
+        </button>
       </div>
 
       {/* Notifications */}
@@ -155,10 +233,12 @@ export default function AdminFramePage() {
       )}
 
       {/* Loading State */}
-      {isLoading ? (
+      {isLoading || isSyncing ? (
         <div className="flex-grow flex flex-col items-center justify-center py-20">
           <Loader2 className="h-10 w-10 text-indigo-500 animate-spin mb-4" />
-          <p className="text-slate-400 text-sm font-semibold">Loading frame repository...</p>
+          <p className="text-slate-400 text-sm font-semibold">
+            {isSyncing ? 'Syncing frames from cloud...' : 'Loading frame repository...'}
+          </p>
         </div>
       ) : (
         /* Repository Workspace */
