@@ -52,7 +52,8 @@ export default function AdminFramePage() {
         if (!remote.image_url) continue;
 
         try {
-          const response = await fetch(remote.image_url);
+          const encodedUrl = encodeURI(remote.image_url);
+          const response = await fetch(encodedUrl);
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           const blob = await response.blob();
 

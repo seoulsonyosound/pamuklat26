@@ -11,7 +11,10 @@ import { SupabaseService } from '@/services/supabase/SupabaseService';
 import { IndexedDBService } from '@/services/storage/IndexedDBService';
 import { CanvasService } from '@/services/CanvasService';
 import { FilterSelectorBar } from '@/components/FilterSelectorBar';
+import { StickerPickerDrawer } from '@/components/StickerStudio/StickerPickerDrawer';
+import { InteractiveStickerOverlay, PlacedPreviewSticker } from '@/components/StickerStudio/InteractiveStickerOverlay';
 import { PHOTOBOOTH_FILTERS, PhotoboothFilter, getFilterById } from '@/utils/filters';
+import { StickerItem } from '@/utils/stickers';
 import { Photostrip, FrameTemplate } from '@/types';
 
 const PreviewContent: React.FC = () => {
@@ -34,6 +37,8 @@ const PreviewContent: React.FC = () => {
   const [selectedFrameId, setSelectedFrameId] = useState<string | null>(null);
 
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [stickers, setStickers] = useState<PlacedPreviewSticker[]>([]);
+  const [selectedStickerId, setSelectedStickerId] = useState<string | null>(null);
   const hasInitializedRef = useRef<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRecomposing, setIsRecomposing] = useState<boolean>(false);
@@ -106,7 +111,11 @@ const PreviewContent: React.FC = () => {
 
 
   const recompositeStrip = useCallback(
-    async (frameId: string | null, filter: PhotoboothFilter) => {
+    async (
+      frameId: string | null,
+      filter: PhotoboothFilter,
+      currentStickers: PlacedPreviewSticker[] = stickers
+    ) => {
       if (!photostrip || !photostrip.rawPhotos || photostrip.rawPhotos.length !== 4) {
         return;
       }
@@ -118,7 +127,8 @@ const PreviewContent: React.FC = () => {
         const newBlob = await CanvasService.generatePhotostrip(
           photostrip.rawPhotos,
           frameObj?.imageBlob || null,
-          filter.css
+          filter.css,
+          currentStickers
         );
 
         if (activeUrlRef.current) {
@@ -135,49 +145,111 @@ const PreviewContent: React.FC = () => {
         setIsRecomposing(false);
       }
     },
-    [photostrip, frames]
+    [photostrip, frames, stickers]
   );
 
   const handleFilterSelect = (filter: PhotoboothFilter) => {
     setSelectedFilter(filter);
-    recompositeStrip(selectedFrameId, filter);
+    recompositeStrip(selectedFrameId, filter, stickers);
   };
 
   const handleFrameSelect = (frameId: string | null) => {
     setSelectedFrameId(frameId);
-    recompositeStrip(frameId, selectedFilter);
+    recompositeStrip(frameId, selectedFilter, stickers);
+  };
+
+  const handleAddSticker = (item: StickerItem) => {
+    const newSticker: PlacedPreviewSticker = {
+      id: `sticker_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      url: item.url,
+      x: 105, // center x relative to 280px container
+      y: 385, // center y relative to 840px container
+      width: 70,
+      height: 70,
+      rotation: 0,
+    };
+    setStickers((prev) => [...prev, newSticker]);
+    setSelectedStickerId(newSticker.id);
+  };
+
+  const handleUpdateSticker = (updated: PlacedPreviewSticker) => {
+    setStickers((prev) =>
+      prev.map((s) => (s.id === updated.id ? updated : s))
+    );
+  };
+
+  const handleDeleteSticker = (id: string) => {
+    setStickers((prev) => prev.filter((s) => s.id !== id));
+    if (selectedStickerId === id) {
+      setSelectedStickerId(null);
+    }
+  };
+
+  const handleClearStickers = () => {
+    setStickers([]);
+    setSelectedStickerId(null);
   };
 
   /**
-   * Upload the current local blob (with applied frame+filter) to Supabase.
+   * Upload the current local blob (with applied frame+filter+stickers) to Supabase.
    * Called before Download and Gallery so the cloud version is always up to date.
    */
   const uploadCurrentState = useCallback(async (strip: Photostrip) => {
     try {
-      await SupabaseService.uploadPhotostrip(strip);
+      let finalStrip = strip;
+      if (strip.rawPhotos && strip.rawPhotos.length === 4) {
+        const frameObj = selectedFrameId ? frames.find((f) => f.id === selectedFrameId) : null;
+        const bakedBlob = await CanvasService.generatePhotostrip(
+          strip.rawPhotos,
+          frameObj?.imageBlob || null,
+          selectedFilter.css,
+          stickers
+        );
+        await StorageService.updatePhotostrip(strip.id, bakedBlob, selectedFrameId, selectedFilter.id);
+        finalStrip = { ...strip, imageBlob: bakedBlob };
+      }
+      await SupabaseService.uploadPhotostrip(finalStrip);
       await IndexedDBService.markAsSynced(strip.id, new Date());
     } catch (err) {
       console.warn('Failed to upload photostrip to cloud (will retry later):', err);
-      // Non-blocking: user can still download/navigate even if upload fails
     }
-  }, []);
+  }, [stickers, selectedFrameId, selectedFilter, frames]);
 
   const handleDownload = async () => {
-    if (!imageUrl || !photostrip) return;
+    if (!photostrip) return;
     setIsUploading(true);
+    let downloadUrl = imageUrl;
     try {
-      // Upload the finalised version (with frame+filter) to Supabase first
-      await uploadCurrentState(photostrip);
+      if (photostrip.rawPhotos && photostrip.rawPhotos.length === 4) {
+        const frameObj = selectedFrameId ? frames.find((f) => f.id === selectedFrameId) : null;
+        const bakedBlob = await CanvasService.generatePhotostrip(
+          photostrip.rawPhotos,
+          frameObj?.imageBlob || null,
+          selectedFilter.css,
+          stickers
+        );
+        downloadUrl = URL.createObjectURL(bakedBlob);
+        await StorageService.updatePhotostrip(photostrip.id, bakedBlob, selectedFrameId, selectedFilter.id);
+        const updatedStrip = { ...photostrip, imageBlob: bakedBlob };
+        await SupabaseService.uploadPhotostrip(updatedStrip);
+        await IndexedDBService.markAsSynced(photostrip.id, new Date());
+      } else {
+        await uploadCurrentState(photostrip);
+      }
+    } catch (err) {
+      console.error('Failed to prepare download:', err);
     } finally {
       setIsUploading(false);
     }
-    // Then trigger browser download
-    const a = document.createElement('a');
-    a.href = imageUrl;
-    a.download = photostrip.filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+
+    if (downloadUrl) {
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = photostrip.filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
   };
 
   const handleGoToGallery = async () => {
@@ -228,8 +300,19 @@ const PreviewContent: React.FC = () => {
             }`}
           />
 
+          {/* Interactive Drag, Resize & Rotate Sticker Overlay */}
+          <InteractiveStickerOverlay
+            stickers={stickers}
+            selectedId={selectedStickerId}
+            onSelectSticker={setSelectedStickerId}
+            onChangeSticker={handleUpdateSticker}
+            onDeleteSticker={handleDeleteSticker}
+            containerWidth={280}
+            containerHeight={840}
+          />
+
           {isRecomposing && (
-            <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-xs flex flex-col items-center justify-center text-white">
+            <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-xs flex flex-col items-center justify-center text-white z-30">
               <Loader2 className="h-8 w-8 text-rose-500 animate-spin mb-2" />
               <span className="text-xs font-bold tracking-wider uppercase">Updating Layout...</span>
             </div>
@@ -331,6 +414,23 @@ const PreviewContent: React.FC = () => {
               );
             })}
           </div>
+        </div>
+
+        {/* 3. Sticker & Prop Selection Library */}
+        <div className="flex flex-col gap-2">
+          {stickers.length > 0 && (
+            <div className="flex justify-end">
+              <button
+                onClick={handleClearStickers}
+                disabled={isRecomposing}
+                type="button"
+                className="text-xs font-bold text-rose-500 hover:text-rose-600 transition-colors cursor-pointer"
+              >
+                Clear Added Props ({stickers.length})
+              </button>
+            </div>
+          )}
+          <StickerPickerDrawer onAddSticker={handleAddSticker} />
         </div>
 
         {/* Action Buttons Box */}

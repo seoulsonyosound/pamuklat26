@@ -66,12 +66,23 @@ export class CanvasService {
   /**
    * Combines 4 photo Blobs into a single vertical photostrip (800x2400px).
    * Overlays the custom PNG frame (if provided); otherwise, draws a premium default frame.
-   * Applies filterCss to photo layers.
+   * Applies filterCss to photo layers and draws stickers on top.
    */
   static async generatePhotostrip(
     photos: Blob[],
     customFrameBlob: Blob | null = null,
-    filterCss: string = 'none'
+    filterCss: string = 'none',
+    stickers: Array<{
+      id: string;
+      url: string;
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      rotation?: number;
+      previewWidth?: number;
+      previewHeight?: number;
+    }> = []
   ): Promise<Blob> {
     if (photos.length !== 4) {
       throw new Error('Photostrip generation requires exactly 4 photos.');
@@ -178,7 +189,35 @@ export class CanvasService {
       this.drawDefaultFrame(ctx);
     }
 
-    // 6. Export to Blob
+    // Step 4: Draw Interactive Stickers on top of photostrip
+    if (stickers && stickers.length > 0) {
+      for (const sticker of stickers) {
+        try {
+          const stickerImg = await this.loadBlobAsImage(await (await fetch(sticker.url)).blob());
+          const pW = sticker.previewWidth || 280;
+          const pH = sticker.previewHeight || 840;
+          const scaleX = this.CANVAS_WIDTH / pW;
+          const scaleY = this.CANVAS_HEIGHT / pH;
+
+          const destX = sticker.x * scaleX;
+          const destY = sticker.y * scaleY;
+          const destW = sticker.width * scaleX;
+          const destH = sticker.height * scaleY;
+
+          ctx.save();
+          ctx.translate(destX + destW / 2, destY + destH / 2);
+          if (sticker.rotation) {
+            ctx.rotate((sticker.rotation * Math.PI) / 180);
+          }
+          ctx.drawImage(stickerImg, -destW / 2, -destH / 2, destW, destH);
+          ctx.restore();
+        } catch (err) {
+          console.warn('Failed to draw sticker onto canvas:', err);
+        }
+      }
+    }
+
+    // 5. Export to Blob
     return new Promise<Blob>((resolve, reject) => {
       canvas.toBlob(
         (blob) => {
