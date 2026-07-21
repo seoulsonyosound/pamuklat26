@@ -43,7 +43,6 @@ export default function GalleryPage() {
   const [isFetchingRemote, setIsFetchingRemote] = useState<boolean>(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [reuploadingId, setReuploadingId] = useState<string | null>(null);
-  const [isReuploadingAll, setIsReuploadingAll] = useState<boolean>(false);
   const [isDownloadingAll, setIsDownloadingAll] = useState<boolean>(false);
   const [downloadAllProgress, setDownloadAllProgress] = useState<string>('');
 
@@ -217,22 +216,6 @@ export default function GalleryPage() {
     }
   };
 
-  // Force re-upload ALL local strips (fixes all out-of-sync framed/filtered photos at once)
-  const handleReuploadAll = async () => {
-    if (!(localStrips ?? []).length) return;
-    setIsReuploadingAll(true);
-    try {
-      for (const strip of (localStrips ?? [])) {
-        await SupabaseService.uploadPhotostrip(strip);
-        await IndexedDBService.markAsSynced(strip.id, new Date());
-      }
-      await fetchRemoteStrips();
-    } catch (err) {
-      console.error('Failed to re-upload all strips:', err);
-    } finally {
-      setIsReuploadingAll(false);
-    }
-  };
 
   // Compile and download all photostrips as a single ZIP archive
   const handleDownloadAll = async () => {
@@ -327,18 +310,6 @@ export default function GalleryPage() {
             {isFetchingRemote ? 'Loading...' : 'Refresh'}
           </button>
 
-          {/* Admin: Re-upload All to Cloud button */}
-          {isAdmin && (localStrips ?? []).length > 0 && (
-            <button
-              onClick={handleReuploadAll}
-              disabled={isReuploadingAll}
-              className="flex items-center gap-2 px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer"
-              title="Force re-upload all local photostrips to cloud (fixes missing frame/filter on other devices)"
-            >
-              <UploadCloud className={`h-3.5 w-3.5 ${isReuploadingAll ? 'animate-pulse' : ''}`} />
-              {isReuploadingAll ? 'Uploading...' : 'Re-upload All to Cloud'}
-            </button>
-          )}
 
           {/* Admin: Download All Photos button */}
           {isAdmin && stripsList.length > 0 && (
