@@ -5,10 +5,12 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Download, Trash2, X, Image as ImageIcon, Cloud, CloudOff, ZoomIn, Loader2, RefreshCw } from 'lucide-react';
+import { Download, Trash2, X, Image as ImageIcon, Cloud, CloudOff, ZoomIn, Loader2, RefreshCw, UploadCloud } from 'lucide-react';
 import { db } from '@/lib/db';
 import { supabase } from '@/lib/supabase';
 import { StorageService } from '@/services/storage/StorageService';
+import { SupabaseService } from '@/services/supabase/SupabaseService';
+import { IndexedDBService } from '@/services/storage/IndexedDBService';
 import { AdminService } from '@/services/AdminService';
 import { Photostrip } from '@/types';
 
@@ -40,6 +42,8 @@ export default function GalleryPage() {
   const [remoteStrips, setRemoteStrips] = useState<RemoteStrip[]>([]);
   const [isFetchingRemote, setIsFetchingRemote] = useState<boolean>(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [reuploadingId, setReuploadingId] = useState<string | null>(null);
+  const [isReuploadingAll, setIsReuploadingAll] = useState<boolean>(false);
 
   // Sync auth state reactively on mount
   useEffect(() => {
@@ -195,6 +199,40 @@ export default function GalleryPage() {
     }
   };
 
+  // Force re-upload a single local strip to Supabase (overwrites old cloud version)
+  const handleReupload = async (strip: Photostrip, event?: React.MouseEvent) => {
+    if (event) event.stopPropagation();
+    setReuploadingId(strip.id);
+    try {
+      await SupabaseService.uploadPhotostrip(strip);
+      await IndexedDBService.markAsSynced(strip.id, new Date());
+      await fetchRemoteStrips();
+    } catch (err) {
+      console.error('Failed to re-upload strip:', err);
+      alert('Failed to re-upload photostrip to cloud.');
+    } finally {
+      setReuploadingId(null);
+    }
+  };
+
+  // Force re-upload ALL local strips (fixes all out-of-sync framed/filtered photos at once)
+  const handleReuploadAll = async () => {
+    if (!(localStrips ?? []).length) return;
+    setIsReuploadingAll(true);
+    try {
+      for (const strip of (localStrips ?? [])) {
+        await SupabaseService.uploadPhotostrip(strip);
+        await IndexedDBService.markAsSynced(strip.id, new Date());
+      }
+      await fetchRemoteStrips();
+    } catch (err) {
+      console.error('Failed to re-upload all strips:', err);
+    } finally {
+      setIsReuploadingAll(false);
+    }
+  };
+
+
   if (!localStrips) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center py-12">
@@ -218,7 +256,7 @@ export default function GalleryPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3 self-start">
+        <div className="flex items-center gap-3 self-start flex-wrap">
           {/* Refresh button */}
           <button
             onClick={fetchRemoteStrips}
@@ -229,6 +267,19 @@ export default function GalleryPage() {
             <RefreshCw className={`h-3.5 w-3.5 ${isFetchingRemote ? 'animate-spin' : ''}`} />
             {isFetchingRemote ? 'Loading...' : 'Refresh'}
           </button>
+
+          {/* Admin: Re-upload All to Cloud button */}
+          {isAdmin && (localStrips ?? []).length > 0 && (
+            <button
+              onClick={handleReuploadAll}
+              disabled={isReuploadingAll}
+              className="flex items-center gap-2 px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer"
+              title="Force re-upload all local photostrips to cloud (fixes missing frame/filter on other devices)"
+            >
+              <UploadCloud className={`h-3.5 w-3.5 ${isReuploadingAll ? 'animate-pulse' : ''}`} />
+              {isReuploadingAll ? 'Uploading...' : 'Re-upload All to Cloud'}
+            </button>
+          )}
 
           {/* Count Badge */}
           <div className="px-4 py-2 rounded-xl bg-white/80 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-900 text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300">
@@ -332,7 +383,7 @@ export default function GalleryPage() {
                     </p>
                   </div>
 
-                  {/* Download: visible to all. Delete: admin only */}
+                  {/* Download: visible to all. Re-upload + Delete: admin only */}
                   <div className="flex items-center gap-1.5 shrink-0">
                     <button
                       onClick={(e) => { e.stopPropagation(); handleDownload(strip); }}
@@ -346,6 +397,21 @@ export default function GalleryPage() {
                         <Download className="h-3.5 w-3.5" />
                       )}
                     </button>
+                    {/* Admin re-upload: only for local strips (has blob to push) */}
+                    {isAdmin && !isRemoteOnly(strip) && (
+                      <button
+                        onClick={(e) => handleReupload(strip as Photostrip, e)}
+                        disabled={reuploadingId === strip.id}
+                        className="rounded-lg bg-slate-200 dark:bg-slate-900 hover:bg-indigo-500/10 p-1.5 text-slate-700 dark:text-slate-400 hover:text-indigo-500 transition-colors border border-slate-300 dark:border-slate-850 disabled:opacity-50"
+                        title="Re-upload to cloud (push current frame/filter to Supabase)"
+                      >
+                        {reuploadingId === strip.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <UploadCloud className="h-3.5 w-3.5" />
+                        )}
+                      </button>
+                    )}
                     {isAdmin && (
                       <button
                         onClick={(e) => handleDelete(strip.id, e)}
